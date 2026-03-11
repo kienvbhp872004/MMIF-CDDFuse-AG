@@ -22,7 +22,7 @@ def csf_filter(img):
     return convolve2d(img, kernel, mode="same")
 
 
-def QCV_metric(A,B,F,window=8):
+def QCV(A,B,F,window=8):
 
     GA = sobel_edges(A)
     GB = sobel_edges(B)

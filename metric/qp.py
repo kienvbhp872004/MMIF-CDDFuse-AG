@@ -1,6 +1,5 @@
 import numpy as np
 from phasepack import phasecong
-import cv2
 
 def correlation_coeff(x, y, C=1e-8):
     x = x.flatten()
@@ -15,15 +14,14 @@ def correlation_coeff(x, y, C=1e-8):
 
     return (sigma_xy + C) / (sigma_x * sigma_y + C)
 
+
 def compute_phase_congruency(img):
     M, m, ori, ft, PC, EO, T = phasecong(img)
 
-    # phase congruency
-    pc = PC
+    pc = np.array(PC)
+    max_moment = np.array(M)
+    min_moment = np.array(m)
 
-    # principal moments
-    max_moment = M
-    min_moment = m
     return pc, max_moment, min_moment
 
 def max_select_map(A, B):
