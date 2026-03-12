@@ -26,7 +26,7 @@ ct_dir = os.path.join(dataset_dir,fused[0], method[0])
 mri_dir = os.path.join(dataset_dir,fused[0], method[1])
 
 # ===== GIỚI HẠN SỐ ẢNH =====
-MAX_IMAGES = 5
+MAX_IMAGES = 24
 
 images = sorted(os.listdir(ct_dir))[:MAX_IMAGES]
 
@@ -91,7 +91,7 @@ for name, val in zip(header[1:], avg_values):
 
 # ===== LƯU CSV =====
 
-csv_path = "fusion_metrics_results.csv"
+csv_path = "fusion_metrics_results_ct_mri.csv"
 
 with open(csv_path, "w", newline="") as f:
     writer = csv.writer(f)
