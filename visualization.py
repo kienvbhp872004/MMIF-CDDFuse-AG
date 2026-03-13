@@ -138,4 +138,4 @@ fig_summary.savefig(summary_path, dpi=SAVE_DPI, bbox_inches="tight",
 plt.close(fig_summary)
 
 print(f"\n✅ Summary grid saved: {summary_path}")
-print(f"✅ Tổng cộng {len(saved_figs)} ảnh riêng + 1 summary MRI SPECT → '{OUTPUT_FOLDER}/'")
+print(f"✅ Tổng cộng {len(saved_figs)} ảnh riêng + 1 summary → '{OUTPUT_FOLDER}/'")
