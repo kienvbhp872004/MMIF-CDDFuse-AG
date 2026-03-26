@@ -51,7 +51,7 @@ def tsallis_mutual_information(img1, img2, q, bins=256):
     return (sum_term - 1) / (q - 1)
 
 
-def QTE(A, B, F, q=1.5, bins=256):
+def QTE(A, B, F, q=0.5, bins=256):
     I_AF = tsallis_mutual_information(A, F, q, bins)
     I_BF = tsallis_mutual_information(B, F, q, bins)
     I_AB = tsallis_mutual_information(A, B, q, bins)

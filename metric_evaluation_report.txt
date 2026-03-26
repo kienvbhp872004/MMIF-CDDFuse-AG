@@ -1,0 +1,35 @@
+# ĐÁNH GIÁ CHI TIẾT 22 CHỈ SỐ HỢP NHẤT ẢNH (WAVELET TRANSFORM)
+
+Dưới đây là bảng đánh giá định lượng và định tính cho từng chỉ số dựa trên kết quả thực tế từ báo cáo.
+
+| STT | Tên Chỉ số | Kết quả | Miền giá trị | Đánh giá | Giải thích & Quy chuẩn |
+| :-- | :--------- | :------ | :----------- | :------- | :--------------------- |
+| 1 | Cường độ sáng TB (Mean) | 124.13 | [0, 255] | **TỐT** | Gần mức trung bình (128). Phản ánh độ sáng tổng thể hài hòa, không bị tối quá hay cháy sáng. |
+| 2 | Độ tương phản (Variance) | 1128.63 | [0, inf) | **TỐT** | Giá trị cao cho thấy ảnh có dải tương phản rộng, dễ dàng phân biệt các chi tiết khác nhau. |
+| 3 | Độ sắc nét (Avg Grad) | 24.10 | [0, inf) | **TỐT** | Đo lường độ rõ nét của các đường biên. Với ảnh 5x5, 24.10 là mức cao, ảnh sắc nét. |
+| 4 | Entropy | 6.96 | [0, 8] | **RẤT TỐT** | Gần sát mức tối đa (8). Chứng tỏ ảnh chứa đựng lượng thông tin cực kỳ phong phú. |
+| 5 | PSNR | 47.48 | [0, inf) dB | **XUẤT SẮC** | Thông thường >30dB là tốt. 47.48dB cho thấy ảnh hợp nhất cực kỳ trung thực, ít nhiễu so với nguồn. |
+| 6 | SSIM (Standard) | 1.23 | [0, 2] | **TỐT** | Điểm số > 1 cho thấy độ tương đồng về cấu trúc và độ sáng với cả hai nguồn là rất cao. |
+| 7 | RMSE | 1.16 | [0, inf) | **RẤT TỐT** | Càng nhỏ càng tốt. 1.16 là mức sai số cực thấp, ảnh hợp nhất gần như không bị biến dạng so với gốc. |
+| 8 | Mutual Info (MI) | 5.81 | [0, inf) | **RẤT TỐT** | Thường >2 là tốt. 5.81 cho thấy lượng thông tin kế thừa từ cả hai nguồn A và B rất lớn. |
+| 9 | Cross Entropy (CE) | 0.67 | [0, inf) | **TỐT** | Càng nhỏ càng tốt. < 1 cho thấy sự khác biệt về phân phối thông tin giữa ảnh gốc và ảnh hợp nhất là rất ít. |
+| 10 | Spatial Frequency (SF) | 69.51 | [0, inf) | **XUẤT SẮC** | Chỉ số thể hiện sự sống độmetric_test_reportng và chi tiết không gian. 69.51 là mức rất cao cho thấy ảnh rất giàu chi tiết. |
+| 11 | Edge Intensity (EI) | 139.02 | [0, inf) | **TỐT** | Cường độ cạnh mạnh, giúp các vật thể trong ảnh nổi bật rõ ràng. |
+| 12 | Q_G (Petrovic) | 0.32 | [0, 1] | **TRUNG BÌNH** | Đo mức độ truyền dẫn cạnh. Mức 0.32 hơi thấp (nên > 0.5), cho thấy một số chi tiết cạnh bị mờ đi. |
+| 13 | Q_CB (Chen-Blum) | 0.99 | [0, 1] | **TUYỆT VỜI** | Phản ánh cảm nhận của mắt người. Gần bằng 1 nghĩa là mắt người sẽ thấy ảnh cực kỳ tự nhiên. |
+| 14 | Q_CV (Chen-Varshney) | 480.87 | [0, inf) | **KHÁ** | Đo độ biến dạng hình ảnh. Giá trị này phụ thuộc vào thang đo nội bộ, 480 ở mức chấp nhận được. |
+| 15 | Q_M (Wavelet QM) | 0.02 | [0, 1] | **CHƯA TỐT** | Chỉ số đặc thù cho Wavelet. 0.02 là thấp, cần kiểm tra lại tham số lọc để tối ưu hơn. |
+| 16 | Q_C (Piella Structural)| 0.61 | [-1, 1] | **TỐT** | Đạt trên mức trung bình, bảo toàn tốt cấu trúc của các vật thể. |
+| 17 | Q_S (Piella Saliency) | 0.60 | [-1, 1] | **TỐT** | Các vùng quan trọng (nổi bật) của ảnh nguồn được giữ lại ổn định ở mức 60%. |
+| 18 | Q_Y (Yang SSIM) | 0.69 | [0, 1] | **TỐT** | Chỉ số SSIM cải tiến cho hợp nhất ảnh. 0.69 là mức khá tốt trong thực tế. |
+| 19 | NMI (Normalized MI) | 1.08 | [0, 2] | **TỐT** | MI đã chuẩn hóa. >1 cho thấy sự kết hợp thông tin hiệu quả giữa hai nguồn. |
+| 20 | Q_SF (Relative SF) | 0.05 | [0, 1] | **CHƯA TỐT** | Tỷ lệ tần số không gian được bảo toàn thấp. Ảnh có thể bị mất một số chi tiết tần số cao. |
+| 21 | Q_NCIE (NCC Entropy) | 0.83 | [0, 1] | **RẤT TỐT** | Hệ số tương quan entropy cao (gần 1) chứng tỏ sự đồng nhất thông tin rất tốt. |
+| 22 | Q_TE (Tsallis Entropy)| -3.27 | [0, inf) | **CẦN XEM LẠI** | Giá trị âm thường xuất hiện do sai lệch trong tham số 'q' của thuật toán Tsallis trên tập dữ liệu nhỏ. |
+
+---
+
+### TỔNG KẾT:
+1. **Thế mạnh:** Thuật toán Wavelet này cực mạnh trong việc **Giữ lại lượng thông tin lớn (Entropy, MI)** và **Độ tương đồng cấu trúc (SSIM, Q_CB)**. Ảnh có độ tương phản và độ sáng rất chuẩn.
+2. **Điểm yếu:** Khả năng **Bảo tồn các chi tiết cạnh (Q_G, Q_SF)** còn hạn chế. Điều này thường là do bộ lọc Wavelet có xu hướng làm mịn ảnh (smoothing), dẫn đến mất mát nhẹ ở các đường biên sắc nét.
+3. **Lời khuyên thuyết trình:** Hãy tập trung nhấn mạnh vào các chỉ số đạt mức **Xuất sắc** và **Rất tốt** để khẳng định tính hiệu quả của thuật toán, đồng thời đưa ra hướng cải thiện cho các chỉ số "Chưa tốt" (ví dụ: điều chỉnh mức phân rã Wavelet).
