@@ -1,58 +1,58 @@
 import numpy as np
 import cv2
 
-
-def uiqi(x, y, eps=1e-10):
+def local_stats(x, y, win, step=8):
+    """
+    Vectorized computation of local means and variances for non-overlapping blocks.
+    """
     x = x.astype(np.float64)
     y = y.astype(np.float64)
+    
+    # Kernel for sum over window
+    kernel = np.ones((win, win), np.float64)
+    n = win * win
+    
+    mu_x_full = cv2.filter2D(x, -1, kernel, borderType=cv2.BORDER_CONSTANT) / n
+    mu_y_full = cv2.filter2D(y, -1, kernel, borderType=cv2.BORDER_CONSTANT) / n
+    
+    mu_x_sq_full = cv2.filter2D(x*x, -1, kernel, borderType=cv2.BORDER_CONSTANT) / n
+    mu_y_sq_full = cv2.filter2D(y*y, -1, kernel, borderType=cv2.BORDER_CONSTANT) / n
+    mu_xy_full   = cv2.filter2D(x*y, -1, kernel, borderType=cv2.BORDER_CONSTANT) / n
+    
+    # Extract blocks (every 'step')
+    # Original loop for i in range(0, h-win+1, step)
+    # The filter2D result map at [i + win-1, j + win-1] would give the sum of [i, i+win-1].
+    mu_x = mu_x_full[win-1::step, win-1::step]
+    mu_y = mu_y_full[win-1::step, win-1::step]
+    mu_x_sq = mu_x_sq_full[win-1::step, win-1::step]
+    mu_y_sq = mu_y_sq_full[win-1::step, win-1::step]
+    mu_xy = mu_xy_full[win-1::step, win-1::step]
+    
+    # Variances and Covariance
+    var_x = np.maximum(mu_x_sq - mu_x**2, 0)
+    var_y = np.maximum(mu_y_sq - mu_y**2, 0)
+    cov_xy = mu_xy - mu_x * mu_y
+    
+    return mu_x, mu_y, var_x, var_y, cov_xy
 
-    mean_x = np.mean(x)
-    mean_y = np.mean(y)
-
-    var_x = np.var(x)
-    var_y = np.var(y)
-
-    cov_xy = np.mean((x - mean_x) * (y - mean_y))
-
-    numerator = 4 * cov_xy * mean_x * mean_y
-    denominator = (var_x + var_y) * (mean_x**2 + mean_y**2) + eps
-
+def uiqi_vec(x_mean, y_mean, x_var, y_var, xy_cov, eps=1e-10):
+    numerator = 4 * xy_cov * x_mean * y_mean
+    denominator = (x_var + y_var) * (x_mean**2 + y_mean**2) + eps
     return numerator / denominator
 
-
 def QS(A, B, F, window_size=8):
-
-    A = A.astype(np.float64)
-    B = B.astype(np.float64)
-    F = F.astype(np.float64)
-
-    h, w = A.shape
-    step = window_size
-
-    qs_sum = 0
-    count = 0
-
-    for i in range(0, h - window_size + 1, step):
-        for j in range(0, w - window_size + 1, step):
-
-            Aw = A[i:i+window_size, j:j+window_size]
-            Bw = B[i:i+window_size, j:j+window_size]
-            Fw = F[i:i+window_size, j:j+window_size]
-
-            varA = np.var(Aw)
-            varB = np.var(Bw)
-
-            if varA + varB == 0:
-                lam = 0.5
-            else:
-                lam = varA / (varA + varB)
-
-            qAF = uiqi(Aw, Fw)
-            qBF = uiqi(Bw, Fw)
-
-            qs_local = lam * qAF + (1 - lam) * qBF
-
-            qs_sum += qs_local
-            count += 1
-
-    return qs_sum / count
+    # Non-overlapping blocks (step = window_size)
+    muA, muF, varA, varF, covAF = local_stats(A, F, window_size, step=window_size)
+    muB, _, varB, _, covBF = local_stats(B, F, window_size, step=window_size)
+    
+    # Lambda = varA / (varA + varB)
+    denom_lam = varA + varB
+    lam = np.divide(varA, denom_lam, out=np.ones_like(varA)*0.5, where=denom_lam!=0)
+    
+    # UIQI maps
+    qAF = uiqi_vec(muA, muF, varA, varF, covAF)
+    qBF = uiqi_vec(muB, muF, varB, varF, covBF)
+    
+    # Global index
+    qs_map = lam * qAF + (1 - lam) * qBF
+    return np.mean(qs_map)
