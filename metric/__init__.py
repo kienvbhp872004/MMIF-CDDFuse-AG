@@ -2,6 +2,9 @@ from .mean_intensity import mean_intensity
 from .variance import variance
 from .average_gradient import average_gradient
 from .entropy import entropy
+from .fmi import fmi
+from .ncie import ncie
+from .Nabf import nabf
 
 # Matlab / Standard counterparts
 from .mutual_information import mutual_information

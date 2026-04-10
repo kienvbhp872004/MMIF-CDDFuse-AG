@@ -49,10 +49,10 @@ def local_stats(x, y, win):
 def QC(A, B, F, win=8):
     # Vectorized UIQI logic
     def get_uiqi(x_mean, y_mean, x_var, y_var, xy_cov):
+        eps = 1e-8
         num = 4 * xy_cov * x_mean * y_mean
-        den = (x_var + y_var) * (x_mean**2 + y_mean**2)
-        # Avoid division by zero
-        res = np.divide(num, den, out=np.zeros_like(num), where=den!=0)
+        den = (x_var + y_var + eps) * (x_mean**2 + y_mean**2 + eps)
+        res = num / den
         return res
 
     muA, muF, varA, varF, covAF = local_stats(A, F, win)

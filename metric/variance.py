@@ -2,6 +2,7 @@ import numpy as np
 
 def variance(F):
     """
-    Phương sai (Variance) - Một chỉ số đánh giá độ tương phản.
+    Standard Deviation (Matching Matlab metricsVariance.m)
+    Note: Despite the name, metricsVariance.m in the MATLAB folder returns SD.
     """
-    return np.var(F.astype(np.float64))
+    return np.std(F.astype(np.float64))

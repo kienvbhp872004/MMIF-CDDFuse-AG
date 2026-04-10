@@ -1,0 +1,19 @@
+# Handle line endings automatically for text files
+# and leave binary files alone
+* text=auto
+
+# Force source code to be treated as text and normalized
+*.py text
+*.md text
+*.txt text
+*.ipynb text
+*.csv text
+
+# Explicitly declare binary files to prevent Git from touching them
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.pth binary
+*.weights binary

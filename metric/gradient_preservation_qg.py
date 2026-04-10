@@ -1,66 +1,86 @@
 import cv2
 import numpy as np
 
-
 def sobel_gradients(img):
-    img = img.astype(np.float32)
-
-    sx = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
-    sy = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
-
-    g = np.sqrt(sx ** 2 + sy ** 2)
-    alpha = np.arctan2(sx, sy)
-
+    img = img.astype(np.float64)
+    
+    # Custom Sobel kernels from metricsQabf.m
+    # h3 = [-1 0 1; -2 0 2; -1 0 1] -> Vertical edges (x-gradient)
+    # h1 = [1 2 1; 0 0 0; -1 -2 -1] -> Horizontal edges (y-gradient)
+    h3 = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float64)
+    h1 = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=np.float64)
+    
+    # Using cv2.filter2D to match Matlab's imfilter with these kernels
+    # Note: cv2.filter2D(..., borderType=cv2.BORDER_CONSTANT) to match Matlab's default 0 padding
+    sx = cv2.filter2D(img, -1, h3, borderType=cv2.BORDER_CONSTANT)
+    sy = cv2.filter2D(img, -1, h1, borderType=cv2.BORDER_CONSTANT)
+    
+    g = np.sqrt(sx**2 + sy**2)
+    
+    # Orientation matching Matlab's a = atan(sy/sx) with handling for sx=0
+    alpha = np.zeros_like(sx)
+    mask_sx_nonzero = (sx != 0)
+    alpha[mask_sx_nonzero] = np.arctan(sy[mask_sx_nonzero] / sx[mask_sx_nonzero])
+    alpha[~mask_sx_nonzero] = np.pi / 2
+    
     return g, alpha
 
+def QG(A, B, F):
+    """
+    Q^AB/F (Gradient Preservation) - Matches Matlab metricsQabf.m exactly.
+    """
+    # Parameters from Matlab code
+    Tg = 0.9994; kg = -15.0; Dg = 0.5
+    Ta = 0.9879; ka = -22.0; Da = 0.8    
 
-def sigmoid(x, k, x0):
-    return 1 / (1 + np.exp(-k * (x - x0)))
-
-
-def QG(A, B, F, L=1):
-    # gradients
     gA, aA = sobel_gradients(A)
     gB, aB = sobel_gradients(B)
     gF, aF = sobel_gradients(F)
 
-    eps = 1e-12
+    # Relative edge strength (GAF, GBF)
+    # Matlab logic:
+    # if (gA > gF) GAF = gF/gA;
+    # else if (gA == gF) GAF = gF; (Wait, this is the weird part in Matlab)
+    # else GAF = gA/gF;
+    
+    def calculate_relative_strength(gsource, gfused):
+        GAF = np.zeros_like(gsource)
+        
+        # Case: gsource > gfused
+        mask1 = (gsource > gfused)
+        GAF[mask1] = gfused[mask1] / (gsource[mask1] + 1e-12)
+        
+        # Case: gsource == gfused
+        mask2 = (gsource == gfused)
+        GAF[mask2] = gfused[mask2] # Matching the weird Matlab logic
+        
+        # Case: gsource < gfused
+        mask3 = (gsource < gfused)
+        GAF[mask3] = gsource[mask3] / (gfused[mask3] + 1e-12)
+        
+        return GAF
 
-    # relative edge strength
-    GAF = np.minimum(gF, gA) / (np.maximum(gF, gA) + eps)
-    GBF = np.minimum(gF, gB) / (np.maximum(gF, gB) + eps)
+    GAF = calculate_relative_strength(gA, gF)
+    GBF = calculate_relative_strength(gB, gF)
 
-    # orientation preservation
-    AAF = 1 - np.abs(aA - aF) / (np.pi / 2)
-    ABF = 1 - np.abs(aB - aF) / (np.pi / 2)
+    # Orientation preservation
+    AAF = 1.0 - np.abs(aA - aF) / (np.pi / 2.0)
+    ABF = 1.0 - np.abs(aB - aF) / (np.pi / 2.0)
 
-    # clamp
-    AAF = np.clip(AAF, 0, 1)
-    ABF = np.clip(ABF, 0, 1)
-
-    # sigmoid parameters (typical values)
-    kg = 15
-    tg = 0.5
-
-    ka = 15
-    ta = 0.75
-
-    QgAF = sigmoid(GAF, kg, tg)
-    QaAF = sigmoid(AAF, ka, ta)
-
-    QgBF = sigmoid(GBF, kg, tg)
-    QaBF = sigmoid(ABF, ka, ta)
-
+    # Sigmoid functions
+    QgAF = Tg / (1.0 + np.exp(kg * (GAF - Dg)))
+    QaAF = Ta / (1.0 + np.exp(ka * (AAF - Da)))
     QAF = QgAF * QaAF
+
+    QgBF = Tg / (1.0 + np.exp(kg * (GBF - Dg)))
+    QaBF = Ta / (1.0 + np.exp(ka * (ABF - Da)))
     QBF = QgBF * QaBF
 
-    # weights
-    wA = gA ** L
-    wB = gB ** L
-
-    numerator = np.sum(QAF * wA + QBF * wB)
-    denominator = np.sum(wA + wB) + eps
-
-    QG = numerator / denominator
-
-    return QG
+    # Total QG
+    deno = np.sum(gA + gB)
+    nume = np.sum(QAF * gA + QBF * gB)
+    
+    if deno == 0:
+        return 0.0
+        
+    return nume / deno
