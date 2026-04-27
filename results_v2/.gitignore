@@ -1,0 +1,7 @@
+# Skip fused image outputs (large, regeneratable)
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tif
+*.tiff

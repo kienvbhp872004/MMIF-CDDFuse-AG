@@ -1,0 +1,191 @@
+[23:31:22] === Runner start · 5 model(s) · dry_run=True ===
+[23:31:22] START BSAFusion/CT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\BSAFusion\evaluate_bsafusion.py --modal CT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\BSAFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\CT-MRI\MRI --harvard_pet D:\Workspace\Github\Repo\Image-Fusion\data\reference\CT-MRI\CT
+[23:31:22] START BSAFusion/PET
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\BSAFusion\evaluate_bsafusion.py --modal PET --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\BSAFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\PET-MRI\MRI --harvard_pet D:\Workspace\Github\Repo\Image-Fusion\data\reference\PET-MRI\PET
+[23:31:22] START BSAFusion/SPECT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\BSAFusion\evaluate_bsafusion.py --modal SPECT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\BSAFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\SPECT-MRI\MRI --harvard_pet D:\Workspace\Github\Repo\Image-Fusion\data\reference\SPECT-MRI\SPECT
+[23:31:22] START ECINFusion/CT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\ECINFusion\evaluate_ecinfusion.py --modal CT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\ECINFusion --dataset_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START ECINFusion/PET
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\ECINFusion\evaluate_ecinfusion.py --modal PET --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\ECINFusion --dataset_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START GeSeNet/CT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\GeSeNet\evaluate_gesenet.py --modal CT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\GeSeNet --harvard_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START GeSeNet/PET
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\GeSeNet\evaluate_gesenet.py --modal PET --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\GeSeNet --harvard_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START GeSeNet/SPECT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\GeSeNet\evaluate_gesenet.py --modal SPECT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\GeSeNet --harvard_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START MBHFuse/CT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\MBHFuse\evaluate_mbhfuse.py --modal CT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\MBHFuse --dataset_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START MBHFuse/PET
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\MBHFuse\evaluate_mbhfuse.py --modal PET --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\MBHFuse --dataset_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START MBHFuse/SPECT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\MBHFuse\evaluate_mbhfuse.py --modal SPECT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\MBHFuse --dataset_root D:\Workspace\Github\Repo\Image-Fusion\data\reference
+[23:31:22] START TUFusion/CT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\TUFusion\evaluate_tufusion.py --modal CT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\TUFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\CT-MRI\MRI --harvard_src D:\Workspace\Github\Repo\Image-Fusion\data\reference\CT-MRI\CT
+[23:31:22] START TUFusion/PET
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\TUFusion\evaluate_tufusion.py --modal PET --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\TUFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\PET-MRI\MRI --harvard_src D:\Workspace\Github\Repo\Image-Fusion\data\reference\PET-MRI\PET
+[23:31:22] START TUFusion/SPECT
+[23:31:22]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\TUFusion\evaluate_tufusion.py --modal SPECT --out_dir D:\Workspace\Github\Repo\Image-Fusion\results_v2\TUFusion --harvard_mri D:\Workspace\Github\Repo\Image-Fusion\data\reference\SPECT-MRI\MRI --harvard_src D:\Workspace\Github\Repo\Image-Fusion\data\reference\SPECT-MRI\SPECT
+[23:31:22] === Runner done ===
+[23:31:40] === Runner start · 16 model(s) · dry_run=False ===
+[23:31:40] START BSAFusion/CT
+[23:33:34] OK    BSAFusion/CT (114.0s)
+[23:33:34] START BSAFusion/PET
+[23:35:13] OK    BSAFusion/PET (98.6s)
+[23:35:13] START BSAFusion/SPECT
+[23:36:46] OK    BSAFusion/SPECT (92.8s)
+[23:36:46] START C2RF/PET
+[23:39:28] OK    C2RF/PET (162.7s)
+[23:39:28] START CDDFuse/CT
+[23:42:40] OK    CDDFuse/CT (191.7s)
+[23:42:40] START CDDFuse/PET
+[23:45:51] OK    CDDFuse/PET (190.7s)
+[23:45:51] START CDDFuse/SPECT
+[23:48:36] OK    CDDFuse/SPECT (164.7s)
+[23:48:36] START CM-CSAMFNet/CT
+[23:48:45] FAIL  CM-CSAMFNet/CT (9.1s) rc=2
+[23:48:45]     | usage: evaluate_cmcsamfnet.py [-h] [--modal {PET,SPECT}]
+[23:48:45]     |                               [--max_images MAX_IMAGES] [--ae_model AE_MODEL]
+[23:48:45]     |                               [--harvard_root HARVARD_ROOT]
+[23:48:45]     |                               [--out_dir OUT_DIR] [--device DEVICE]
+[23:48:45]     | evaluate_cmcsamfnet.py: error: argument --modal: invalid choice: 'CT' (choose from 'PET', 'SPECT')
+[23:48:45] START CM-CSAMFNet/PET
+[23:50:48] OK    CM-CSAMFNet/PET (123.1s)
+[23:50:48] START CM-CSAMFNet/SPECT
+[23:53:21] OK    CM-CSAMFNet/SPECT (153.1s)
+[23:53:21] START CMMDL/CT
+[23:57:11] OK    CMMDL/CT (230.5s)
+[23:57:11] START CMMDL/PET
+[00:01:13] OK    CMMDL/PET (241.8s)
+[00:01:13] START CMMDL/SPECT
+[00:05:09] OK    CMMDL/SPECT (235.8s)
+[00:05:09] START DDBFusion/CT
+[00:18:46] OK    DDBFusion/CT (817.2s)
+[00:18:46] START DDBFusion/PET
+[00:34:07] OK    DDBFusion/PET (920.3s)
+[00:34:07] START DDBFusion/SPECT
+[00:46:52] OK    DDBFusion/SPECT (765.6s)
+[00:46:52] START ECINFusion/CT
+[00:48:07] OK    ECINFusion/CT (75.0s)
+[00:48:07] START ECINFusion/PET
+[00:49:21] OK    ECINFusion/PET (74.0s)
+[00:49:21] START GeSeNet/CT
+[00:50:32] OK    GeSeNet/CT (71.2s)
+[00:50:32] START GeSeNet/PET
+[00:51:48] OK    GeSeNet/PET (75.3s)
+[00:51:48] START GeSeNet/SPECT
+[00:53:03] OK    GeSeNet/SPECT (75.7s)
+[00:53:03] START ITFuse/CT
+[00:54:12] OK    ITFuse/CT (68.9s)
+[00:54:12] START ITFuse/PET
+[00:55:17] OK    ITFuse/PET (65.1s)
+[00:55:17] START ITFuse/SPECT
+[00:56:22] OK    ITFuse/SPECT (64.9s)
+[00:56:22] START LRFNet/CT
+[00:57:27] OK    LRFNet/CT (65.2s)
+[00:57:27] START LRFNet/PET
+[00:58:33] OK    LRFNet/PET (65.3s)
+[00:58:33] START LRFNet/SPECT
+[00:59:38] OK    LRFNet/SPECT (65.5s)
+[00:59:38] START MBHFuse/CT
+[01:00:32] OK    MBHFuse/CT (53.4s)
+[01:00:32] START MBHFuse/PET
+[01:01:25] OK    MBHFuse/PET (53.0s)
+[01:01:25] START MBHFuse/SPECT
+[01:02:18] OK    MBHFuse/SPECT (53.8s)
+[01:02:18] START MFS-Fusion/CT
+[01:52:26] OK    MFS-Fusion/CT (3007.4s)
+[01:52:26] START MFS-Fusion/PET
+[02:42:17] OK    MFS-Fusion/PET (2991.1s)
+[02:42:17] START MFS-Fusion/SPECT
+[03:32:14] OK    MFS-Fusion/SPECT (2996.9s)
+[03:32:14] START NestFuse/CT
+[03:33:30] OK    NestFuse/CT (76.7s)
+[03:33:30] START NestFuse/PET
+[03:34:47] OK    NestFuse/PET (76.1s)
+[03:34:47] START NestFuse/SPECT
+[03:36:03] OK    NestFuse/SPECT (76.8s)
+[03:36:03] START SPDFusion/CT
+[03:36:20] FAIL  SPDFusion/CT (16.8s) rc=1
+[03:36:20]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:20]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\conv.py", line 456, in _conv_forward
+[03:36:20]     |     return F.conv2d(input, weight, bias, self.stride,
+[03:36:20]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:20]     | RuntimeError: Given groups=1, weight of size [64, 1024, 3, 3], expected input[1, 256, 64, 64] to have 1024 channels, but got 256 channels instead
+[03:36:20] START SPDFusion/PET
+[03:36:35] FAIL  SPDFusion/PET (15.3s) rc=1
+[03:36:35]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:35]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\conv.py", line 456, in _conv_forward
+[03:36:35]     |     return F.conv2d(input, weight, bias, self.stride,
+[03:36:35]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:35]     | RuntimeError: Given groups=1, weight of size [64, 1024, 3, 3], expected input[1, 256, 64, 64] to have 1024 channels, but got 256 channels instead
+[03:36:35] START SPDFusion/SPECT
+[03:36:51] FAIL  SPDFusion/SPECT (15.4s) rc=1
+[03:36:51]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:51]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\conv.py", line 456, in _conv_forward
+[03:36:51]     |     return F.conv2d(input, weight, bias, self.stride,
+[03:36:51]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:36:51]     | RuntimeError: Given groups=1, weight of size [64, 1024, 3, 3], expected input[1, 256, 64, 64] to have 1024 channels, but got 256 channels instead
+[03:36:51] START TUFusion/CT
+[03:40:56] FAIL  TUFusion/CT (245.6s) rc=1
+[03:40:56]     |     print(f"\n[DONE] Results \u2192 {csv_path}")
+[03:40:56]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+[03:40:56]     |     return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+[03:40:56]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:40:56]     | UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 17: character maps to <undefined>
+[03:40:56] START TUFusion/PET
+[03:44:57] FAIL  TUFusion/PET (240.2s) rc=1
+[03:44:57]     |     print(f"\n[DONE] Results \u2192 {csv_path}")
+[03:44:57]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+[03:44:57]     |     return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+[03:44:57]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:44:57]     | UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 17: character maps to <undefined>
+[03:44:57] START TUFusion/SPECT
+[03:49:01] FAIL  TUFusion/SPECT (244.5s) rc=1
+[03:49:01]     |     print(f"\n[DONE] Results \u2192 {csv_path}")
+[03:49:01]     |   File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+[03:49:01]     |     return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+[03:49:01]     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[03:49:01]     | UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 17: character maps to <undefined>
+[03:49:01] START WaveFusion/CT
+[03:52:52] OK    WaveFusion/CT (231.2s)
+[03:52:52] START WaveFusion/PET
+[03:56:43] OK    WaveFusion/PET (231.1s)
+[03:56:43] START WaveFusion/SPECT
+[04:00:33] OK    WaveFusion/SPECT (229.4s)
+[04:00:33] === Runner done ===
+[09:31:02] === Runner start · 2 model(s) · dry_run=True ===
+[09:31:02] START MM-Net-Fusion/ALL
+[09:31:02]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\MM-Net-Fusion\evaluate_mmnet_fusion.py
+[09:31:02]   env HARVARD_ROOT=D:\Workspace\Github\Repo\Image-Fusion\data\reference OUT_DIR=D:\Workspace\Github\Repo\Image-Fusion\results_v2\MM-Net-Fusion
+[09:31:02] START AdaFuse/ALL
+[09:31:02]   C:\Users\admin\AppData\Local\Programs\Python\Python311\python.exe D:\Workspace\Github\Repo\Image-Fusion\models\AdaFuse\evaluate_adafuse.py
+[09:31:02]   env HARVARD_ROOT=D:\Workspace\Github\Repo\Image-Fusion\data\reference OUT_DIR=D:\Workspace\Github\Repo\Image-Fusion\results_v2\AdaFuse
+[09:31:02] === Runner done ===
+[09:31:08] === Runner start · 1 model(s) · dry_run=False ===
+[09:31:08] START MM-Net-Fusion/ALL
+[09:34:32] OK    MM-Net-Fusion/ALL (203.5s)
+[09:34:32] === Runner done ===
+[09:34:49] === Runner start · 6 model(s) · dry_run=False ===
+[09:34:49] START AdaFuse/ALL
+[09:38:39] OK    AdaFuse/ALL (230.3s)
+[09:38:39] START MMIF-INet/ALL
+[09:40:32] OK    MMIF-INet/ALL (112.6s)
+[09:40:32] START MLFuse/ALL
+[09:42:16] OK    MLFuse/ALL (104.7s)
+[09:42:16] START MMAE/ALL
+[09:44:22] OK    MMAE/ALL (125.6s)
+[09:44:22] START PSFusion/ALL
+[09:46:44] OK    PSFusion/ALL (142.4s)
+[09:46:44] START SFMFusion/ALL
+[09:51:35] OK    SFMFusion/ALL (290.2s)
+[09:51:35] === Runner done ===
+[09:58:48] === Runner start · 1 model(s) · dry_run=False ===
+[09:58:48] START AdaFuse/ALL
+[10:03:11] OK    AdaFuse/ALL (263.5s)
+[10:03:11] === Runner done ===
+[10:25:24] === Runner start · 3 model(s) · dry_run=False ===
+[10:25:24] START DDFM/CT
+[14:25:25] TIMEOUT DDFM/CT
+[14:25:25] START DDFM/PET
