@@ -1,7 +1,26 @@
+# Datasets (large, store on Kaggle/external)
 Havard-Medical-Image-Fusion-Datasets-main
-algorithm/decomposition/__pycache__
-metric/__pycache__  
-algorithm/__pycache__/__init__.cpython-311.pyc
-models
-data
-results
+data/
+results/
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Pretrained / trained weights (store on Kaggle, too large for git)
+*.pth
+*.pt
+*.ckpt
+*.h5
+
+# Per-model heavy assets we don't need on GitHub
+models/**/test_img/
+models/**/image/
+
+# Kaggle scratch
+kaggle_run/_datasets/
+kaggle_run/_runs/
+kaggle_run/kernel-metadata.json
+
+# Claude scratch
+.claude/scheduled_tasks.lock
