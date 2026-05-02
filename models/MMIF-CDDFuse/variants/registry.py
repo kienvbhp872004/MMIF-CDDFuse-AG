@@ -10,7 +10,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import torch.nn as nn
 
-from .modules import GatedFuseLayer, IdentitySum
+from .modules import CrossAttnFuse, GatedFuseLayer, IdentitySum
 
 # (base_factory, detail_factory, train_mode)
 # train_mode in {"light_retrain", "full_retrain", "inference_only"}
@@ -18,8 +18,9 @@ VARIANT_REGISTRY: Dict[str, Tuple[Callable[[], nn.Module], Callable[[], nn.Modul
     # Baseline — paper gốc
     "FuseRule-Sum":     (lambda: IdentitySum(),         lambda: IdentitySum(),         "inference_only"),
     # Module A alternatives
-    "FuseRule-Gated":   (lambda: GatedFuseLayer(64),    lambda: GatedFuseLayer(64),    "light_retrain"),
-    # TODO: FuseRule-CrossAttn, FuseRule-ChannelMoE
+    "FuseRule-Gated":     (lambda: GatedFuseLayer(64),               lambda: GatedFuseLayer(64),               "light_retrain"),
+    "FuseRule-CrossAttn": (lambda: CrossAttnFuse(64, num_heads=4),   lambda: CrossAttnFuse(64, num_heads=4),   "light_retrain"),
+    # TODO: FuseRule-ChannelMoE
 }
 
 

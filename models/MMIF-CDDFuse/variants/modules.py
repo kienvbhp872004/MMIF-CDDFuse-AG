@@ -10,6 +10,7 @@ Init phải đảm bảo behavior epoch-0 ≈ baseline (sum hoặc avg) để li
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class IdentitySum(nn.Module):
@@ -40,3 +41,69 @@ class GatedFuseLayer(nn.Module):
     def forward(self, feat_a: torch.Tensor, feat_b: torch.Tensor) -> torch.Tensor:
         g = torch.sigmoid(self.gate(torch.cat([feat_a, feat_b], dim=1)))
         return g * feat_a + (1.0 - g) * feat_b
+
+
+class CrossAttnFuse(nn.Module):
+    """
+    Bidirectional channel-wise cross-attention (Restormer MDTA style).
+
+    A queries B's channels and vice versa, results blended via 1×1 projection.
+    Channel-attention (C×C, không phải HW×HW) -> linear in HW, scale tốt với ảnh y khoa.
+
+    Init: proj_out weight và bias = 0  =>  out = 0.5·(A + B)  ≈  baseline behavior epoch-0.
+    Tham số ~50K cho dim=64, num_heads=4.
+    """
+
+    def __init__(self, dim: int = 64, num_heads: int = 4, bias: bool = True):
+        super().__init__()
+        assert dim % num_heads == 0, f"dim {dim} must divide num_heads {num_heads}"
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+
+        self.qkv_a       = nn.Conv2d(dim, dim * 3, kernel_size=1, bias=bias)
+        self.qkv_b       = nn.Conv2d(dim, dim * 3, kernel_size=1, bias=bias)
+        self.qkv_a_dconv = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, padding=1,
+                                     groups=dim * 3, bias=bias)
+        self.qkv_b_dconv = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, padding=1,
+                                     groups=dim * 3, bias=bias)
+        self.proj_out    = nn.Conv2d(dim * 2, dim, kernel_size=1, bias=bias)
+
+        # Identity init: epoch-0 output = 0.5*(A+B), close to baseline sum (after rescale).
+        nn.init.zeros_(self.proj_out.weight)
+        if bias:
+            nn.init.zeros_(self.proj_out.bias)
+
+    def _to_heads(self, x: torch.Tensor, B: int, H: int, W: int) -> torch.Tensor:
+        # (B, C, H, W) -> (B, num_heads, C/num_heads, H*W)
+        C = x.shape[1]
+        return x.reshape(B, self.num_heads, C // self.num_heads, H * W)
+
+    def _from_heads(self, x: torch.Tensor, B: int, C: int, H: int, W: int) -> torch.Tensor:
+        return x.reshape(B, C, H, W)
+
+    def forward(self, feat_a: torch.Tensor, feat_b: torch.Tensor) -> torch.Tensor:
+        B, C, H, W = feat_a.shape
+        qkv_a = self.qkv_a_dconv(self.qkv_a(feat_a))
+        qkv_b = self.qkv_b_dconv(self.qkv_b(feat_b))
+        qa, ka, va = qkv_a.chunk(3, dim=1)
+        qb, kb, vb = qkv_b.chunk(3, dim=1)
+
+        qa = self._to_heads(qa, B, H, W); ka = self._to_heads(ka, B, H, W); va = self._to_heads(va, B, H, W)
+        qb = self._to_heads(qb, B, H, W); kb = self._to_heads(kb, B, H, W); vb = self._to_heads(vb, B, H, W)
+
+        # L2-normalize on channel dim for stable channel-attention (Restormer convention)
+        qa = F.normalize(qa, dim=-1); ka = F.normalize(ka, dim=-1)
+        qb = F.normalize(qb, dim=-1); kb = F.normalize(kb, dim=-1)
+
+        # Cross-attention: A queries B
+        attn_ab = (qa @ kb.transpose(-2, -1)) * self.temperature
+        attn_ab = attn_ab.softmax(dim=-1)
+        out_ab  = self._from_heads(attn_ab @ vb, B, C, H, W)
+
+        # Cross-attention: B queries A
+        attn_ba = (qb @ ka.transpose(-2, -1)) * self.temperature
+        attn_ba = attn_ba.softmax(dim=-1)
+        out_ba  = self._from_heads(attn_ba @ va, B, C, H, W)
+
+        out = self.proj_out(torch.cat([out_ab, out_ba], dim=1))
+        return 0.5 * (feat_a + feat_b) + out
