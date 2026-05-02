@@ -1,6 +1,6 @@
 ---
 name: fusion-train-kaggle
-description: Train CDDFuse variant trên Kaggle GPU (T4/P100, 30h/tuần miễn phí) thay vì local. Quản lý setup credentials, push dataset, generate notebook training, pull ckpt + per-image CSV về local. Trigger khi user nói "train trên kaggle", "push kaggle", "kéo ckpt về", "không có GPU local", "kaggle kernel".
+description: Train CDDFuse variant trên Kaggle (Tesla P100 với CPU fallback do sm_60 không tương thích torch hiện tại — chấp nhận chậm hơn để KHÔNG phải đợi T4 free quota). Quản lý notebook lifecycle, pull output, đồng bộ vào results_v2/ và PROGRESS.md. Trigger khi user nói "train trên kaggle", "push kaggle", "kéo ckpt về", "kaggle kernel".
 ---
 
 # fusion-train-kaggle

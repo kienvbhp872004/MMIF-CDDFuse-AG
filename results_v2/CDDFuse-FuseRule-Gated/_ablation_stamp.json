@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-FuseRule-Gated",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-02T08:23:17.314763Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "8575e252df14968376e345766f04b7bfb76670c1e30f11f69322a477a7619bfd"
+  }
+}

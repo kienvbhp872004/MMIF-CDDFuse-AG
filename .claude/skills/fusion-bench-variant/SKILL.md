@@ -174,7 +174,37 @@ QG      ...
 
 Lưu ra `results_v2/CDDFuse-<Tag>/_delta_report.md`.
 
-### Bước 7 — Hand-off
+### Bước 7 — Append vào PROGRESS.md (BẮT BUỘC)
+
+Sau khi 3 modal xong + có delta report, **append entry mới** vào `results_v2/PROGRESS.md` theo template:
+
+```markdown
+### YYYY-MM-DD · `CDDFuse-<Tag>` · <prototype|final>
+
+**Hypothesis**: ...
+
+**Module thay đổi**: file::class
+
+**Training config**: bảng (mode, params, data, hardware, epochs, batch, lr, seed, wall time, ckpt sha)
+
+**Loss curve**: bảng (epoch 1, mid, last) — đọc từ `<variant>_train_history.json`
+
+**Quick delta vs baseline**: bảng metrics × modals từ `_delta_report.md`
+
+**Acceptance criteria check** (xem RESEARCH_METHODOLOGY.md §3): checklist
+
+**Files**: list paths
+
+**Quyết định**: KEEP / ITERATE / REJECT + lý do
+
+**Next steps**: ...
+```
+
+Cũng update `## Trạng thái` block ở đầu PROGRESS.md (latest update, latest variant, status).
+
+KHÔNG xoá entry cũ. KHÔNG để rỗng acceptance criteria — nếu chưa test, ghi rõ "chưa tính".
+
+### Bước 8 — Hand-off
 
 Cuối cùng in:
 
@@ -182,7 +212,8 @@ Cuối cùng in:
 [bench-variant] DONE. Next steps:
   1. Run `fusion-stats` for significance tests vs baseline
   2. Update `results_v2/zscore_ranking.csv` if delta meaningful
-  3. Add row to thesis ablation table (Section X.Y)
+  3. Review `results_v2/PROGRESS.md` (auto-updated)
+  4. Add row to thesis ablation table (Section X.Y)
 ```
 
 ## Hard rules
@@ -193,6 +224,7 @@ Cuối cùng in:
 - KHÔNG dùng dataset/split khác baseline. Ablation = same-data, only-component-changes.
 - KHÔNG self-fill `components_changed` — yêu cầu user xác nhận. Sai mô tả là sai paper.
 - LUÔN sinh `_ablation_stamp.json` — đây là tài liệu đính kèm khi reviewer hỏi "variant này thực sự là gì".
+- LUÔN append vào `results_v2/PROGRESS.md` ngay khi variant xong (kể cả khi prototype). User cần single source of truth để track tiến độ ĐATN.
 - LUÔN check checkpoint sha256 — nếu trùng với baseline checkpoint, BLOCK ngay (nghĩa là user quên replace ckpt).
 
 ## Khi user hỏi "tại sao phức tạp vậy"
