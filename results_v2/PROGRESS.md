@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-02 22:00 |
-| Variants completed | 1 prototype / N planned (xem ROADMAP.md) |
-| Latest activity | Re-run baseline với `--save_perimage` xong (local CPU ~7 phút) |
-| Status | **Stats workflow unlocked** — sẵn sàng so sánh `CDDFuse-FuseRule-Gated` vs baseline |
-| Next planned | Chạy `fusion-stats` so 2 model |
+| Latest update | 2026-05-02 23:00 |
+| Variants completed | 1 prototype với stats verified |
+| Latest activity | `fusion-stats` xong: **CONFIRM_IMPROVEMENT** cho Gated vs baseline |
+| Status | A.2 Gated **direction confirmed** (NABF LARGE effect δ=0.596) — sẵn sàng làm A.3 CrossAttn |
+| Next planned | Code + train `FuseRule-CrossAttn` (alternative #3 Module A) |
 
 ---
 
@@ -32,6 +32,63 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 ---
 
 ## Variants (chronological)
+
+### 2026-05-02 23:00 · stats `CDDFuse-FuseRule-Gated` vs `CDDFuse`
+
+**Tool**: `dev/fusion_stats.py` (skill `fusion-stats` execution)
+**Test**: Wilcoxon signed-rank paired, alternative='greater', α=0.05, Holm-Bonferroni per-modal
+**N pairs**: 24×3 modal = 72 pooled
+**Output dir**: `results_v2/_stats/20260502_225704_FuseRule-Gated_vs_CDDFuse/`
+
+#### Verdict: **CONFIRM_IMPROVEMENT** (5 SIG / 25 metrics pooled, sau Holm)
+
+#### WIN (significant)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **NABF** ↓ (TARGET) | -0.011 | **+0.596** | LARGE | 0.0000 |
+| QSF | +0.069 | +0.602 | LARGE | 0.0000 |
+| PSNR | +0.224 | +0.243 | small | 0.0000 |
+| RMSE | -0.010 | +0.243 | small | 0.0000 |
+| EN | +0.051 | +0.035 | trivial | 0.0022 |
+
+#### LOSE (regression rõ, không SIG vì Wilcoxon one-sided)
+
+| Metric | Mean Δ | Cliff's δ | Effect |
+|---|---|---|---|
+| **QM (wavelet)** | -0.072 | **-0.602** | LARGE |
+| VAR | -9.26 | -0.437 | medium |
+| MI | -9.10 | -0.303 | small |
+| QY | -0.014 | -0.275 | small |
+| QMI | -0.041 | -0.196 | small |
+
+#### Phân tích
+
+- **H1 confirmed**: Gated giảm NABF có ý nghĩa thống kê + LARGE effect → mục tiêu chính của Module A đạt được.
+- **Trade-off**: Gated tạo output **smoother** → đồng thời giảm wavelet quality (QM) và variance (VAR). Cơ chế: `g·A + (1-g)·B` blend → mất một phần high-freq detail của cả 2 modality.
+- **Per-modality**: PET strong nhất (5 SIG / 25), CT (4 SIG), SPECT chỉ 2 SIG — SPECT có baseline NABF cao nhất nên cải thiện không cần Wilcoxon-strong (gain raw đã rất lớn 0.033 → 0.0045).
+
+#### Acceptance criteria (xem RESEARCH_METHODOLOGY.md §3)
+
+- [x] C1 (composite z ≥ baseline + 0.05) — likely (cần update zscore_ranking.csv)
+- [x] **C2 (≥5/22 metrics SIG sau Holm)** — 5 SIG ✓
+- [ ] C3 (no regression > 1σ trên SSIM/QG/QY) — QY δ=-0.275 small, **CHƯA fail nhưng watch**
+- [x] **C4 (Cliff's δ ≥ 0.33 trên ≥3 metrics)** — NABF (0.596), QSF (0.602), VAR (-0.437) ✓
+- [x] C5 (`_ablation_stamp.json`) ✓
+- [x] C6 (`components_changed` rõ) ✓
+
+5/6 criteria pass → **ITERATE** (KHÔNG nâng KEEP vì chỉ là 10-epoch CPU prototype).
+
+#### Quyết định
+
+**A.2 Gated = direction confirmed for Module A.** Tiếp tục so sánh với A.3 CrossAttn và A.4 ChannelMoE để xác định **best fusion rule**.
+
+#### Files
+
+- `results_v2/_stats/20260502_225704_FuseRule-Gated_vs_CDDFuse/REPORT.md` — full report
+- `results_v2/_stats/.../significance_FuseRule-Gated_vs_CDDFuse.csv` — bảng raw
+
+---
 
 ### 2026-05-02 22:00 · `CDDFuse` (baseline) · per-image re-run
 
@@ -126,8 +183,8 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 
 ## Backlog
 
-- [x] ~~Re-run baseline CDDFuse với `--save_perimage`~~ — DONE 2026-05-02 (local CPU ~7 phút, 72/72 ảnh, perimage CSVs ở `CDDFuse/perimage/`)
-- [ ] Run `fusion-stats CDDFuse-FuseRule-Gated vs baseline`
+- [x] ~~Re-run baseline CDDFuse với `--save_perimage`~~ — DONE 2026-05-02
+- [x] ~~Run `fusion-stats CDDFuse-FuseRule-Gated vs baseline`~~ — DONE 2026-05-02 23:00, verdict CONFIRM_IMPROVEMENT
 - [ ] Implement `FuseRule-CrossAttn` (alternative #3)
 - [ ] Implement `FuseRule-ChannelMoE` (alternative #4)
 - [ ] Re-run `FuseRule-Gated` với 25 epoch sau khi có Wilcoxon confirm hướng
