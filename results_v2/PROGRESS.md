@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-02 |
-| Variants completed | 1 / N planned |
-| Latest variant | `CDDFuse-FuseRule-Gated` |
-| Status | **prototype** (CPU 10 epochs, cần re-run trên P100 GPU full 25 epoch để đánh giá chính thức) |
-| Next planned | TBD — đợi confirm hướng từ user (FuseRule-CrossAttn? PixelSelect-Learnable?) |
+| Latest update | 2026-05-02 22:00 |
+| Variants completed | 1 prototype / N planned (xem ROADMAP.md) |
+| Latest activity | Re-run baseline với `--save_perimage` xong (local CPU ~7 phút) |
+| Status | **Stats workflow unlocked** — sẵn sàng so sánh `CDDFuse-FuseRule-Gated` vs baseline |
+| Next planned | Chạy `fusion-stats` so 2 model |
 
 ---
 
@@ -32,6 +32,24 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 ---
 
 ## Variants (chronological)
+
+### 2026-05-02 22:00 · `CDDFuse` (baseline) · per-image re-run
+
+**Mục đích**: Sinh per-image CSV (24 dòng × 3 modal = 72 entries) làm input cho `fusion-stats` skill — yêu cầu paired data để Wilcoxon test.
+
+**Cmd**: `python evaluate_cddfuse.py --modal {CT,PET,SPECT} --save_perimage` (local CPU)
+
+**Output**:
+- `results_v2/CDDFuse/perimage/CDDFuse_CT_perimage.csv` (24 rows + header)
+- `results_v2/CDDFuse/perimage/CDDFuse_PET_perimage.csv` (24 rows + header)
+- `results_v2/CDDFuse/perimage/CDDFuse_SPECT_perimage.csv` (24 rows + header)
+
+**Sanity check**: aggregated values bit-exact match baseline cũ (timestamp 2026-04-23) → deterministic, weights không đổi.
+
+**Backup**: `results_v2/CDDFuse/CDDFuse_summary.csv.bak` giữ summary cũ.
+
+---
+
 
 ### 2026-05-02 · `CDDFuse-FuseRule-Gated` · prototype
 
@@ -108,7 +126,7 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 
 ## Backlog
 
-- [ ] Re-run baseline CDDFuse trên Kaggle với `--save_perimage` để có perimage CSV
+- [x] ~~Re-run baseline CDDFuse với `--save_perimage`~~ — DONE 2026-05-02 (local CPU ~7 phút, 72/72 ảnh, perimage CSVs ở `CDDFuse/perimage/`)
 - [ ] Run `fusion-stats CDDFuse-FuseRule-Gated vs baseline`
 - [ ] Implement `FuseRule-CrossAttn` (alternative #3)
 - [ ] Implement `FuseRule-ChannelMoE` (alternative #4)
