@@ -152,7 +152,16 @@ class VariantModel(nn.Module):
 # ------------------------------------------------------------------ train loop
 
 def train(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.device == "auto":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Auto-fallback CPU nếu GPU không support (Pascal sm_60)
+        if device.type == "cuda":
+            cap = torch.cuda.get_device_capability(0)
+            if cap[0] < 7:
+                print(f"[train] WARNING: GPU sm_{cap[0]}{cap[1]} unsupported, falling back to CPU")
+                device = torch.device("cpu")
+    else:
+        device = torch.device(args.device)
     set_seed(args.seed)
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -176,6 +185,9 @@ def train(args):
     optim = torch.optim.AdamW(model.trainable_params(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=args.epochs, eta_min=1e-6)
     fuse_loss = Fusionloss().to(device)
+    # Paper's Sobelxy hardcodes .cuda() bypass register_parameter — force-move manually
+    fuse_loss.sobelconv.weightx.data = fuse_loss.sobelconv.weightx.data.to(device)
+    fuse_loss.sobelconv.weighty.data = fuse_loss.sobelconv.weighty.data.to(device)
 
     history = []
     for epoch in range(args.epochs):
@@ -233,6 +245,8 @@ def parse_args():
     ap.add_argument("--lr",          type=float, default=1e-4)
     ap.add_argument("--seed",        type=int,   default=42)
     ap.add_argument("--workers",     type=int,   default=2)
+    ap.add_argument("--device",      type=str,   default="auto",
+                    help="auto / cuda / cpu. 'auto' fallback CPU nếu GPU sm < 7.0")
     return ap.parse_args()
 
 
