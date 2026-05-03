@@ -107,3 +107,45 @@ class CrossAttnFuse(nn.Module):
 
         out = self.proj_out(torch.cat([out_ab, out_ba], dim=1))
         return 0.5 * (feat_a + feat_b) + out
+
+
+class ChannelMoEFuse(nn.Module):
+    """
+    Per-channel Mixture-of-Experts fusion. 3 experts per channel:
+        expert_0 = A
+        expert_1 = B
+        expert_2 = (A + B) / 2
+    Router: global avg-pool -> small MLP -> per-channel softmax over 3 experts.
+
+    Lấy cảm hứng từ TC-MoA (Yang et al., CVPR 2024) — adapt routing pattern xuống
+    fusion-stage thay vì task-adapter level.
+
+    Init: last linear weight và bias = 0  =>  softmax(0,0,0) = (1/3, 1/3, 1/3)
+          =>  output = (1/3)A + (1/3)B + (1/3)·0.5(A+B) = 0.5·(A + B) ≈ baseline.
+    Params: ~5K cho dim=64, hidden=16 (per module).
+    """
+
+    def __init__(self, dim: int = 64, hidden: int = 16):
+        super().__init__()
+        self.dim = dim
+        self.router = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),         # B, 2C, 1, 1
+            nn.Flatten(),                    # B, 2C
+            nn.Linear(dim * 2, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, dim * 3),      # 3 experts × C channels
+        )
+        # Identity init: uniform routing -> output = 0.5*(A + B)
+        nn.init.zeros_(self.router[-1].weight)
+        nn.init.zeros_(self.router[-1].bias)
+
+    def forward(self, feat_a: torch.Tensor, feat_b: torch.Tensor) -> torch.Tensor:
+        B, C, H, W = feat_a.shape
+        x = torch.cat([feat_a, feat_b], dim=1)               # B, 2C, H, W
+        logits = self.router(x)                              # B, 3C
+        weights = logits.reshape(B, 3, C).softmax(dim=1)     # B, 3, C
+        w_a = weights[:, 0].reshape(B, C, 1, 1)
+        w_b = weights[:, 1].reshape(B, C, 1, 1)
+        w_m = weights[:, 2].reshape(B, C, 1, 1)
+        mixed = 0.5 * (feat_a + feat_b)
+        return w_a * feat_a + w_b * feat_b + w_m * mixed
