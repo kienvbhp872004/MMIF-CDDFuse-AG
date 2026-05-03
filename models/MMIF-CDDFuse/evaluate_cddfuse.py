@@ -50,7 +50,7 @@ class CDDFuseModel(nn.Module):
         self.detail_fuse = DetailFeatureExtraction(num_layers=1).to(device)
         self.variant_name = variant
         if variant:
-            gated_b, gated_d, _ = build_variant(variant)
+            gated_b, gated_d, _, _ = build_variant(variant)
             self.gated_b = gated_b.to(device)
             self.gated_d = gated_d.to(device)
         else:

@@ -48,8 +48,9 @@ sys.path.insert(0, str(CDDFUSE_DIR))
 
 from net import (BaseFeatureExtraction, DetailFeatureExtraction,
                  Restormer_Decoder, Restormer_Encoder)
-from utils.loss import Fusionloss, cc
+from utils.loss import cc
 
+from variants.losses import FusionLossB
 from variants.registry import build_variant
 
 # ------------------------------------------------------------------ utils
@@ -117,9 +118,10 @@ class VariantModel(nn.Module):
         self.decoder = Restormer_Decoder().to(device)
         self.base_fuse = BaseFeatureExtraction(dim=64, num_heads=8).to(device)
         self.detail_fuse = DetailFeatureExtraction(num_layers=1).to(device)
-        gated_b, gated_d, train_mode = build_variant(variant_name)
+        gated_b, gated_d, pixel_select, train_mode = build_variant(variant_name)
         self.gated_b = gated_b.to(device)
         self.gated_d = gated_d.to(device)
+        self.pixel_select = pixel_select
         self.train_mode = train_mode
 
         # Load baseline weights
@@ -182,12 +184,17 @@ def train(args):
     loader = DataLoader(dataset, batch_size=args.batch, shuffle=True,
                         num_workers=args.workers, drop_last=True)
 
-    optim = torch.optim.AdamW(model.trainable_params(), lr=args.lr, weight_decay=1e-4)
+    # Module B-aware loss: FusionLossB chọn target theo registry's pixel_select.
+    fuse_loss = FusionLossB(pixel_select=model.pixel_select).to(device)
+    print(f"[train] pixel_select = {model.pixel_select}")
+
+    # Trainable params: model + loss (loss có params nếu pixel_select='learnable').
+    trainable = list(model.trainable_params()) + fuse_loss.trainable_loss_params()
+    n_loss = sum(p.numel() for p in fuse_loss.trainable_loss_params())
+    if n_loss > 0:
+        print(f"[train] loss params: {n_loss:,} (learnable target weight net)")
+    optim = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=args.epochs, eta_min=1e-6)
-    fuse_loss = Fusionloss().to(device)
-    # Paper's Sobelxy hardcodes .cuda() bypass register_parameter — force-move manually
-    fuse_loss.sobelconv.weightx.data = fuse_loss.sobelconv.weightx.data.to(device)
-    fuse_loss.sobelconv.weighty.data = fuse_loss.sobelconv.weighty.data.to(device)
 
     history = []
     for epoch in range(args.epochs):
@@ -226,6 +233,8 @@ def train(args):
         "DetailFuseLayer":  model.detail_fuse.state_dict(),
         "GatedB":           model.gated_b.state_dict(),
         "GatedD":           model.gated_d.state_dict(),
+        "LossNet":          fuse_loss.state_dict() if fuse_loss.trainable_loss_params() else {},
+        "pixel_select":     model.pixel_select,
         "variant_name":     args.variant,
     }
     torch.save(state, ckpt_path)
