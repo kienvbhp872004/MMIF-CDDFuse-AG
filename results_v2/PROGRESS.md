@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-03 14:20 |
-| Variants completed | 2 / 4 Module A (Gated + CrossAttn, both CONFIRM_IMPROVEMENT) |
-| Latest activity | A.3 CrossAttn stats: 5 SIG metrics, **gần giống Gated**. Gated nhỉnh NABF (+0.596 vs +0.529) |
-| Status | Module A: `Sum < CrossAttn ≈ Gated` (Gated slight winner). Còn A.4 ChannelMoE → Friedman 4 models |
-| Next planned | Code + train `FuseRule-ChannelMoE` (alternative #4) → chốt Module A winner |
+| Latest update | 2026-05-04 01:10 |
+| Variants completed | 4 / 4 Module A (Sum + Gated + CrossAttn + ChannelMoE) |
+| Latest activity | A.4 ChannelMoE stats: **MIXED** (4 SIG, worst QM regression -0.745 do capacity nhỏ nhất 5K) |
+| Status | **Module A winner: Gated (A.2)** — best NABF +0.596, least QM regression. Sẵn sàng Friedman 4-way + bắt đầu Module B |
+| Next planned | Friedman + Nemenyi CD diagram cho Module A → start Module B (PixelSelect alternatives) |
 
 ---
 
@@ -25,32 +25,84 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 | # | Variant | Tham số mới | Trạng thái | Composite Δ | Quyết định |
 |---|---|---|---|---|---|
 | A.1 | `FuseRule-Sum` (baseline) | 0 | ✓ có sẵn (CDDFuse_MIF.pth) | 0 (reference) | KEEP |
-| A.2 | `FuseRule-Gated` | ~16K | ✓ CPU 10 ep + stats | NABF δ=+0.596, 5 SIG | **ITERATE** (slight winner) |
-| A.3 | `FuseRule-CrossAttn` | 37K | ✓ CPU 10 ep + stats | NABF δ=+0.529, 5 SIG | **ITERATE** |
-| A.4 | `FuseRule-ChannelMoE` | ~10K | pending | — | — |
+| A.2 | `FuseRule-Gated` | 16K | ✓ CPU 10 ep + stats | NABF δ=+0.596, 5 SIG | **WINNER** |
+| A.3 | `FuseRule-CrossAttn` | 37K | ✓ CPU 10 ep + stats | NABF δ=+0.529, 5 SIG | runner-up |
+| A.4 | `FuseRule-ChannelMoE` | 5K | ✓ CPU 10 ep + stats | NABF δ=+0.504, 4 SIG, QM -0.745 ❌ | weakest |
 
-### Module A — comparison đã có (Gated vs CrossAttn)
+### Module A — comparison đầy đủ 4/4 alternatives
 
-| Metric | Sum (base) | Gated δ | CrossAttn δ | Winner | Verdict (Holm) |
-|---|---|---|---|---|---|
-| **NABF** ↓ | 0.0236 | **+0.596 L** | +0.529 L | Gated | both SIG |
-| QSF ↑ | 0.0383 | **+0.602 L** | +0.542 L | Gated | both SIG |
-| PSNR ↑ | 56.22 | +0.243 s | +0.238 s | tie | both SIG |
-| RMSE ↓ | 0.165 | +0.243 s | +0.238 s | tie | both SIG |
-| EN ↑ | 5.10 | +0.035 t | +0.048 t | CrossAttn | both SIG |
-| QM ↑ (regression) | 0.083 | -0.602 L | **-0.637 L** | Gated less bad | both NS |
-| VAR ↑ (regression) | 76.86 | -0.437 m | -0.421 m | tie | NS |
-| QY ↑ (regression) | 0.956 | -0.275 s | -0.304 s | Gated | NS |
+| Metric | Sum (base) | Gated δ | CrossAttn δ | ChannelMoE δ | Winner | Verdict (Holm) |
+|---|---|---|---|---|---|---|
+| **NABF** ↓ | 0.0236 | **+0.596 L** | +0.529 L | +0.504 L | Gated | all SIG |
+| QSF ↑ | 0.0383 | **+0.602 L** | +0.542 L | +0.488 L | Gated | all SIG |
+| PSNR ↑ | 56.22 | +0.243 s | +0.238 s | +0.256 s | ChannelMoE tie | all SIG |
+| RMSE ↓ | 0.165 | +0.243 s | +0.238 s | +0.256 s | ChannelMoE tie | all SIG |
+| EN ↑ | 5.10 | +0.035 t | +0.048 t | +0.016 t | CrossAttn | Gated/CrossAttn SIG, MoE MARG |
+| QM ↑ (regression) | 0.083 | -0.602 L | -0.637 L | **-0.745 L** ❌ | Gated least bad | all NS |
+| VAR ↑ (regression) | 76.86 | -0.437 m | -0.421 m | -0.471 m | tie | NS |
+| QY ↑ (regression) | 0.956 | -0.275 s | -0.304 s | -0.332 m | Gated | NS |
 
 `L`/`m`/`s`/`t` = large/medium/small/trivial Cliff's δ effect size.
 
-**Insight cho Module A**: 2 fusion rule khác nhau (Gated 16K vs CrossAttn 37K) cho **pattern win/lose gần như giống hệt nhau**. Cùng cải thiện NABF/QSF/PSNR (LARGE effect target) và cùng regression QM/VAR. Trade-off này có vẻ **inherent với soft fusion** trong Module A — phép blend nào cũng smooth output → mất một phần wavelet quality + variance.
+#### Phát hiện quan trọng cho Module A (after 4/4 done)
 
-→ Implication: Module A đơn lẻ không thể vừa giảm artifact vừa giữ wavelet detail. Cần kết hợp với Module B (PixelSelect — giải quyết QM regression) hoặc Stretch S5 (FreqLoss — bù lại high-freq).
+**1. Pattern WIN/LOSE giống nhau ở cả 3 alternatives.** Cả 3 fusion rule đều:
+- WIN: NABF, QSF, PSNR, RMSE (cùng 4 metric LARGE/small effect)
+- LOSE: QM, VAR, QY (cùng 3 metric regression)
+
+→ **Trade-off NABF↑ vs QM↓ là inherent với soft fusion** trong Module A — không phải artifact của 1 architecture cụ thể.
+
+**2. Capacity ↔ severity của trade-off.**
+- ChannelMoE 5K params (smallest) → QM δ = **-0.745** (worst regression)
+- Gated 16K → QM δ = -0.602 (least bad)
+- CrossAttn 37K → QM δ = -0.637 (middle)
+
+→ Capacity nhỏ → fusion smooth aggressive hơn → mất nhiều wavelet detail hơn. Gated 16K là sweet spot.
+
+**3. Adding capacity không tăng performance.** CrossAttn (37K) không vượt Gated (16K) ở metric nào quan trọng. ChannelMoE (5K) thua cả 2. → Soft fusion là **bottleneck inherent**, không phải capacity issue.
+
+#### Quyết định Module A
+
+- **Winner: A.2 Gated** — best NABF gain + least QM regression + simplest architecture.
+- **Citation**: gating concept (Dauphin et al., GLU 2017) + standard fusion practice. Application novelty cho medical fusion với CDDFuse architecture.
+- **Implication cho ROADMAP**: Module B (PixelSelect) trở nên **critical** để fix QM regression — không phải optional. Stretch S5 (FreqLoss) cũng nên ưu tiên.
 
 ---
 
 ## Variants (chronological)
+
+### 2026-05-04 01:10 · `CDDFuse-FuseRule-ChannelMoE` (A.4) — train + stats
+
+**Hypothesis**: Per-channel MoE routing (3 experts: A, B, mix) giải quyết trade-off bằng cách cho mỗi channel chọn expert phù hợp thay vì blend đều.
+
+**Module**: `variants/modules.py::ChannelMoEFuse` — 5K params/module, GAP → MLP → softmax(3 experts) per channel. Inspired TC-MoA (CVPR 2024). Identity init: uniform 1/3 → output = 0.5*(A+B).
+
+**Training config**: identical với A.2/A.3 (CPU 10 ep, batch 2, seed 42)
+
+**Stats verdict**: **MIXED** (4 SIG / 25 pooled, EN MARGINAL)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **NABF** ↓ | -0.010 | +0.504 | LARGE | 0.0004 |
+| QSF | +0.090 | +0.488 | LARGE | 0.0000 |
+| PSNR | +0.235 | +0.256 | small | 0.0000 |
+| RMSE | -0.010 | +0.256 | small | 0.0000 |
+| EN | +0.027 | +0.016 | trivial | 0.1713 (MARGINAL) |
+
+**Regression** (worst của 3 alternatives):
+- **QM δ = -0.745 LARGE** ❌ (Gated -0.602, CrossAttn -0.637)
+- VAR δ = -0.471 medium
+- QY δ = -0.332 medium (lên medium effect, hơn Gated/CrossAttn small)
+
+**Insight quan trọng**:
+- ChannelMoE = smallest capacity (5K) → smooths most aggressive → highest QM regression. Confirm hypothesis "trade-off scales with smoothing aggressiveness".
+- Per-modality: CT 7 SIG (cao nhất), SPECT chỉ 2 SIG. Pattern: capacity nhỏ chịu ảnh hưởng modality variability nhiều hơn.
+
+**Quyết định**: REJECT (trong Module A) — ChannelMoE không phải winner. Nhưng vẫn có giá trị làm **negative result** trong ablation table (chứng minh "MoE routing không cải thiện").
+
+**Files**: `results_v2/CDDFuse-FuseRule-ChannelMoE/`, `_stats/20260504_010829_FuseRule-ChannelMoE_vs_CDDFuse/`
+
+---
 
 ### 2026-05-03 14:20 · `CDDFuse-FuseRule-CrossAttn` (A.3) — train + stats
 
@@ -248,11 +300,13 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 - [x] ~~Re-run baseline CDDFuse với `--save_perimage`~~ — DONE 2026-05-02
 - [x] ~~Run stats `FuseRule-Gated` vs baseline~~ — DONE 2026-05-02 23:00, CONFIRM_IMPROVEMENT
 - [x] ~~Implement `FuseRule-CrossAttn`~~ — DONE 2026-05-03
-- [x] ~~Run stats `FuseRule-CrossAttn` vs baseline~~ — DONE 2026-05-03 14:20, CONFIRM_IMPROVEMENT (slight worse than Gated)
-- [ ] **NEXT**: Implement + train `FuseRule-ChannelMoE` (A.4 — alternative cuối Module A)
-- [ ] Friedman + Nemenyi 4 alternatives Module A → CD diagram → chốt winner
-- [ ] Module B (PixelSelect alternatives) — sau khi chốt Module A
-- [ ] Re-run winner Module A với 25 epoch (final, sau khi chọn xong)
+- [x] ~~Run stats `FuseRule-CrossAttn` vs baseline~~ — DONE 2026-05-03 14:20, CONFIRM_IMPROVEMENT
+- [x] ~~Implement + train `FuseRule-ChannelMoE`~~ — DONE 2026-05-04
+- [x] ~~Run stats `FuseRule-ChannelMoE` vs baseline~~ — DONE 2026-05-04 01:10, MIXED (worst capacity)
+- [x] ~~Module A winner identified~~ — **A.2 Gated** (best NABF, least QM regression)
+- [ ] **NEXT**: Friedman + Nemenyi 4-way + CD diagram cho Module A
+- [ ] Module B (PixelSelect alternatives — critical để fix QM regression của Module A)
+- [ ] Re-run winner Gated với 25 epoch (final, sau Module B xong)
 - [ ] Update `results_v2/zscore_ranking.csv` với composite z mới sau Combined
 
 ---

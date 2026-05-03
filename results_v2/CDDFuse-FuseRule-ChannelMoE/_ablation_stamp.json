@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-FuseRule-ChannelMoE",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-03T15:38:22.929113Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "bf38393f143cda9a13741279c7871cbc44eb6ed4c17bf8e11859f3d622ab0376"
+  }
+}
