@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-02 23:00 |
-| Variants completed | 1 prototype với stats verified |
-| Latest activity | `fusion-stats` xong: **CONFIRM_IMPROVEMENT** cho Gated vs baseline |
-| Status | A.2 Gated **direction confirmed** (NABF LARGE effect δ=0.596) — sẵn sàng làm A.3 CrossAttn |
-| Next planned | Code + train `FuseRule-CrossAttn` (alternative #3 Module A) |
+| Latest update | 2026-05-03 14:20 |
+| Variants completed | 2 / 4 Module A (Gated + CrossAttn, both CONFIRM_IMPROVEMENT) |
+| Latest activity | A.3 CrossAttn stats: 5 SIG metrics, **gần giống Gated**. Gated nhỉnh NABF (+0.596 vs +0.529) |
+| Status | Module A: `Sum < CrossAttn ≈ Gated` (Gated slight winner). Còn A.4 ChannelMoE → Friedman 4 models |
+| Next planned | Code + train `FuseRule-ChannelMoE` (alternative #4) → chốt Module A winner |
 
 ---
 
@@ -25,13 +25,56 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 | # | Variant | Tham số mới | Trạng thái | Composite Δ | Quyết định |
 |---|---|---|---|---|---|
 | A.1 | `FuseRule-Sum` (baseline) | 0 | ✓ có sẵn (CDDFuse_MIF.pth) | 0 (reference) | KEEP |
-| A.2 | `FuseRule-Gated` | ~16K | ✓ prototype CPU 10 ep | TBD (Wilcoxon chưa chạy) | **ITERATE** |
-| A.3 | `FuseRule-CrossAttn` | ~50K | pending | — | — |
+| A.2 | `FuseRule-Gated` | ~16K | ✓ CPU 10 ep + stats | NABF δ=+0.596, 5 SIG | **ITERATE** (slight winner) |
+| A.3 | `FuseRule-CrossAttn` | 37K | ✓ CPU 10 ep + stats | NABF δ=+0.529, 5 SIG | **ITERATE** |
 | A.4 | `FuseRule-ChannelMoE` | ~10K | pending | — | — |
 
 ---
 
 ## Variants (chronological)
+
+### 2026-05-03 14:20 · `CDDFuse-FuseRule-CrossAttn` (A.3) — train + stats
+
+**Hypothesis**: Bidirectional channel-attention (A↔B) giải quyết QM regression của Gated bằng cách giữ richer feature interaction.
+
+**Module**: `variants/modules.py::CrossAttnFuse` — Restormer MDTA-style channel attention, 4 heads, 37K params/module, identity init (proj_out zero → epoch-0 = 0.5*(A+B)).
+
+**Training config**: identical với Gated (CPU 10 ep, batch 2, seed 42, ckpt sha `c540...`)
+
+**Loss curve**: 1.022 → 0.880 (giống Gated, hội tụ chậm tương tự).
+
+**Stats verdict**: **CONFIRM_IMPROVEMENT** (5 SIG / 25 pooled, sau Holm)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| QSF | +0.068 | +0.542 | LARGE | 0.0000 |
+| **NABF** ↓ | -0.009 | +0.529 | LARGE | 0.0001 |
+| PSNR | +0.241 | +0.238 | small | 0.0000 |
+| RMSE | -0.010 | +0.238 | small | 0.0000 |
+| EN | +0.073 | +0.048 | trivial | 0.0000 |
+
+**Regression** (giống Gated): QM δ=-0.637 LARGE, VAR δ=-0.421 medium.
+
+#### Comparison Gated vs CrossAttn
+
+| Metric | Gated δ | CrossAttn δ | Winner |
+|---|---|---|---|
+| NABF | **+0.596** | +0.529 | Gated |
+| QSF | **+0.602** | +0.542 | Gated |
+| PSNR/RMSE | +0.243 | +0.238 | tie |
+| QM (regression) | -0.602 | **-0.637** | Gated less bad |
+
+→ **Gated nhỉnh hơn CrossAttn ở 4/5 metric chính**. CrossAttn dùng 37K params (vs 16K Gated) nhưng **không bù được** complexity tăng.
+
+**Insight**: 2 fusion rules khác nhau cho **kết quả gần giống nhau** → trade-off NABF↑ vs QM↓ là **inherent của Module A** (bất kỳ soft fusion nào cũng sẽ smooth output). Cần Module B (PixelSelect) hoặc khác để giải quyết QM regression.
+
+**Quyết định**: ITERATE. Chạy A.4 ChannelMoE để hoàn tất 4 alternatives → Friedman test → chốt Module A.
+
+**Files**:
+- `results_v2/CDDFuse-FuseRule-CrossAttn/` — full output
+- `results_v2/_stats/20260503_141849_FuseRule-CrossAttn_vs_CDDFuse/` — stats report
+
+---
 
 ### 2026-05-02 23:00 · stats `CDDFuse-FuseRule-Gated` vs `CDDFuse`
 

@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-FuseRule-CrossAttn",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-02T21:54:29.463451Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "ecfae432c71210e98fb410698b840265ad88ffc97df159c19504e1348ae17121"
+  }
+}
