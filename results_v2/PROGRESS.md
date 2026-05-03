@@ -29,6 +29,25 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 | A.3 | `FuseRule-CrossAttn` | 37K | ✓ CPU 10 ep + stats | NABF δ=+0.529, 5 SIG | **ITERATE** |
 | A.4 | `FuseRule-ChannelMoE` | ~10K | pending | — | — |
 
+### Module A — comparison đã có (Gated vs CrossAttn)
+
+| Metric | Sum (base) | Gated δ | CrossAttn δ | Winner | Verdict (Holm) |
+|---|---|---|---|---|---|
+| **NABF** ↓ | 0.0236 | **+0.596 L** | +0.529 L | Gated | both SIG |
+| QSF ↑ | 0.0383 | **+0.602 L** | +0.542 L | Gated | both SIG |
+| PSNR ↑ | 56.22 | +0.243 s | +0.238 s | tie | both SIG |
+| RMSE ↓ | 0.165 | +0.243 s | +0.238 s | tie | both SIG |
+| EN ↑ | 5.10 | +0.035 t | +0.048 t | CrossAttn | both SIG |
+| QM ↑ (regression) | 0.083 | -0.602 L | **-0.637 L** | Gated less bad | both NS |
+| VAR ↑ (regression) | 76.86 | -0.437 m | -0.421 m | tie | NS |
+| QY ↑ (regression) | 0.956 | -0.275 s | -0.304 s | Gated | NS |
+
+`L`/`m`/`s`/`t` = large/medium/small/trivial Cliff's δ effect size.
+
+**Insight cho Module A**: 2 fusion rule khác nhau (Gated 16K vs CrossAttn 37K) cho **pattern win/lose gần như giống hệt nhau**. Cùng cải thiện NABF/QSF/PSNR (LARGE effect target) và cùng regression QM/VAR. Trade-off này có vẻ **inherent với soft fusion** trong Module A — phép blend nào cũng smooth output → mất một phần wavelet quality + variance.
+
+→ Implication: Module A đơn lẻ không thể vừa giảm artifact vừa giữ wavelet detail. Cần kết hợp với Module B (PixelSelect — giải quyết QM regression) hoặc Stretch S5 (FreqLoss — bù lại high-freq).
+
 ---
 
 ## Variants (chronological)
@@ -227,13 +246,14 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 ## Backlog
 
 - [x] ~~Re-run baseline CDDFuse với `--save_perimage`~~ — DONE 2026-05-02
-- [x] ~~Run `fusion-stats CDDFuse-FuseRule-Gated vs baseline`~~ — DONE 2026-05-02 23:00, verdict CONFIRM_IMPROVEMENT
-- [ ] Implement `FuseRule-CrossAttn` (alternative #3)
-- [ ] Implement `FuseRule-ChannelMoE` (alternative #4)
-- [ ] Re-run `FuseRule-Gated` với 25 epoch sau khi có Wilcoxon confirm hướng
-- [ ] Module B (PixelSelect alternatives) — sau khi xong Module A
-- [ ] Update `results_v2/zscore_ranking.csv` với composite z mới
-- [ ] CD diagram khi có ≥3 variants compare (Friedman test)
+- [x] ~~Run stats `FuseRule-Gated` vs baseline~~ — DONE 2026-05-02 23:00, CONFIRM_IMPROVEMENT
+- [x] ~~Implement `FuseRule-CrossAttn`~~ — DONE 2026-05-03
+- [x] ~~Run stats `FuseRule-CrossAttn` vs baseline~~ — DONE 2026-05-03 14:20, CONFIRM_IMPROVEMENT (slight worse than Gated)
+- [ ] **NEXT**: Implement + train `FuseRule-ChannelMoE` (A.4 — alternative cuối Module A)
+- [ ] Friedman + Nemenyi 4 alternatives Module A → CD diagram → chốt winner
+- [ ] Module B (PixelSelect alternatives) — sau khi chốt Module A
+- [ ] Re-run winner Module A với 25 epoch (final, sau khi chọn xong)
+- [ ] Update `results_v2/zscore_ranking.csv` với composite z mới sau Combined
 
 ---
 
