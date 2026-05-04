@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-04 18:25 |
-| Variants completed | 4/4 Module A + 2/4 Module B (Mean, Saliency) |
-| Latest activity | B.3 Saliency stats: **CONFIRM_IMPROVEMENT** — 6 SIG (best Module B), NABF +0.671 ≈ Mean nhưng giữ QM regression không tệ hơn (-0.732 vs Mean -0.735) |
-| Status | Saliency thắng Mean ở SIG count (6 vs 4), confirm hypothesis "gradient-weighted = sweet spot". Tiếp tục B.4 Learnable để hoàn tất 4/4 |
-| Next planned | Code + train `PixelSelect-Learnable` (B.4) — small CNN dự đoán weight per-pixel |
+| Latest update | 2026-05-04 22:40 |
+| Variants completed | **4/4 Module A + 4/4 Module B** ✓ |
+| Latest activity | B.4 Learnable stats: **CONFIRM_IMPROVEMENT** — 5 SIG pooled, nhưng **CT 9 + PET 8 cao nhất Module B** ở per-modality. Pooled tie với Saliency. |
+| Status | Module B đầy đủ 4/4. Saliency thắng pooled (6 SIG); Learnable thắng per-modal (CT/PET). QM trade-off LARGE ở cả 4 → confirm inherent. |
+| Next planned | Friedman + Nemenyi 4-way Module B → chốt winner → Combined A.2 Gated × B.{winner} |
 
 ---
 
@@ -78,30 +78,92 @@ So sánh 4 cách thay thế target `max(I_y, I_ir)` trong loss `L_int^II`. Archi
 | B.1 | `PixelSelect-Max` (baseline) | `max(y, ir)` per-pixel | ✓ có sẵn (CDDFuse_MIF.pth) | reference | — |
 | B.2 | `PixelSelect-Mean` | `0.5*(y+ir)` | ✓ CPU 10 ep + stats | MIXED | 4/25 |
 | B.3 | `PixelSelect-Saliency` | `\|∇y\|/(\|∇y\|+\|∇ir\|)` weighted | ✓ CPU 10 ep + stats | **CONFIRM_IMPROVEMENT** | **6/25** |
-| B.4 | `PixelSelect-Learnable` | small CNN predict weight | pending | — | — |
+| B.4 | `PixelSelect-Learnable` | small CNN predict weight | ✓ CPU 10 ep + stats | CONFIRM_IMPROVEMENT | 5/25 |
 
-### Module B — comparison (B.2 vs B.3)
+### Module B — comparison đầy đủ 4/4 alternatives
 
-| Metric | Mean δ | Saliency δ | Winner |
-|---|---|---|---|
-| **NABF** ↓ | +0.669 L | +0.671 L | tie (Saliency nhỉnh) |
-| QSF ↑ | +0.591 L | +0.568 L | Mean |
-| PSNR ↑ | +0.251 s | +0.236 s | Mean (tiny) |
-| RMSE ↓ | +0.251 s | +0.236 s | Mean (tiny) |
-| QMI ↑ | n/a | +0.047 t SIG | **Saliency** (extra SIG metric) |
-| QM ↑ (regression) | -0.735 L | -0.732 L | Saliency (nhỉnh) |
-| VAR ↑ (regression) | -0.522 L | -0.524 L | tie |
-| Pooled SIG | 4/25 | **6/25** | **Saliency** |
+| Metric | Max (base) | Mean δ | Saliency δ | Learnable δ | Winner |
+|---|---|---|---|---|---|
+| **NABF** ↓ | 0.0236 | +0.669 L | +0.671 L | **+0.671 L** | Saliency/Learnable tie |
+| QSF ↑ | 0.0383 | **+0.591 L** | +0.568 L | +0.543 L | Mean |
+| PSNR ↑ | 56.22 | **+0.251 s** | +0.236 s | +0.228 s | Mean (tiny) |
+| RMSE ↓ | 0.165 | **+0.251 s** | +0.236 s | +0.228 s | Mean (tiny) |
+| QMI ↑ | — | NS | +0.047 t SIG | **+0.074 t SIG** | **Learnable** |
+| QM ↑ (regression) | 0.083 | -0.735 L | -0.732 L | **-0.731 L** | Learnable (nhỉnh) |
+| VAR ↑ (regression) | 76.86 | -0.522 L | -0.524 L | -0.529 L | tie |
+| MI (regression) | — | -0.426 m | -0.429 m | -0.443 m | Mean (nhỉnh) |
+| Pooled SIG | 0 | 4/25 | **6/25** | 5/25 | **Saliency** |
+| CT SIG | — | 6 | 6 | **9** | **Learnable** |
+| PET SIG | — | 6 | 7 | **8** | **Learnable** |
+| SPECT SIG | — | 2 | 2 | 2 | tie |
 
-#### Phát hiện B.3 vs B.2
+`L`/`m`/`s`/`t` = large/medium/small/trivial Cliff's δ.
 
-1. **Saliency = sweet spot xác nhận**. Hypothesis ban đầu (gradient-weighted preserve sharper pixel theo gradient → gần Max nhưng smooth hơn) → **đúng**: Saliency thắng Mean về SIG count (6 vs 4) mà KHÔNG làm tệ thêm QM regression.
-2. **Trade-off NABF↑ vs QM↓ vẫn inherent**. Saliency δ_QM = -0.732 LARGE, gần như không khác Mean. → Module B alone không đủ giải quyết QM. Cần combine với Module A winner hoặc thêm loss component (S5 FreqLoss).
-3. **QMI lên SIG**. Saliency duy nhất trong Module B có QMI SIG (Mean chỉ marginal QCB). → Saliency preserve mutual information tốt hơn Mean — phù hợp với việc weight theo gradient (giữ vùng informative).
+#### Phát hiện quan trọng cho Module B (after 4/4 done)
+
+**1. Pattern WIN/LOSE giống nhau ở cả 4 alternatives.** Mọi soft-target loss đều:
+- WIN: NABF, QSF, PSNR, RMSE (tương tự Module A)
+- LOSE: QM, VAR, MI, QY (giống Module A)
+
+→ **Trade-off NABF↑ vs QM↓ là TRULY INHERENT**, xuất hiện cả khi soft fusion ở **fusion rule** (Module A) lẫn ở **loss target** (Module B). Đây là phát hiện quan trọng cho thesis: bottleneck nằm ở việc target nào chứa sự "smooth blending", không phải kiến trúc cụ thể.
+
+**2. Trade-off severity gần như identical giữa 4 Module B variants** (QM δ ∈ [-0.735, -0.731]).
+- Khác biệt giữa các Module B variants chỉ ở **QMI** (Learnable +0.074 > Saliency +0.047 > Mean NS).
+- → Mức độ "smooth" của target chi phối QM regression; cách tính weight chi phối QMI gain.
+
+**3. Saliency vs Learnable: pooled vs per-modality trade-off.**
+- Saliency thắng pooled SIG count (6 vs 5) → robustness across modalities khi pool.
+- Learnable thắng CT (9 SIG) + PET (8 SIG) per-modality nhưng SPECT yếu (2 SIG) → variance modality cao.
+- Hypothesis: Learnable CNN overfits CT/PET (data nhiều hơn 160+245=405 pairs vs SPECT 333 nhưng diverse hơn) → SPECT generalize kém.
+
+**4. SPECT bottleneck phổ quát**. Mọi variant Module A + Module B đều bị SPECT 2 SIG/25. → SPECT có baseline NABF cao nhất (0.033) nhưng cũng có sample variance cao → khó đạt Wilcoxon SIG. Đây là pattern dataset-level, không variant-level.
+
+#### Quyết định Module B
+
+- **Winner pooled (default)**: **B.3 Saliency** — best pooled SIG (6/25), simplest (no extra params), interpretable (gradient = explicit prior).
+- **Runner-up**: **B.4 Learnable** — best per-modal CT/PET, best QMI gain, nhưng cần thêm regularization cho SPECT.
+- **Citation**: saliency map (Itti & Koch 1998) + gradient-based fusion (DenseFuse 2019, U2Fusion 2020). Application novelty cho CDDFuse loss design.
+- **Decision**: chọn **B.3 Saliency** làm Module B winner cho Combined model — robustness > peak performance khi pooled across modalities.
 
 ---
 
 ## Variants (chronological)
+
+### 2026-05-04 22:40 · `CDDFuse-PixelSelect-Learnable` (B.4) — train + stats
+
+**Hypothesis**: Small CNN `[y, ir, ∇y, ∇ir] → sigmoid(weight)` predict per-pixel weight, init zero → epoch-0 = 0.5*(y+ir). Data-driven có thể học pattern phức tạp hơn (không bị giới hạn formula gradient của Saliency). Kỳ vọng: Learnable ≥ Saliency.
+
+**Module**: `variants/losses.py::FusionLossB(pixel_select='learnable')`. Architecture: Conv2d(4→8, 3×3) + GELU + Conv2d(8→1, 1×1). Output projection init zero.
+
+**Training config**: CPU 10 ep, batch 2, seed 42, fine-tune BaseFuseLayer + DetailFuseLayer + LossNet.weight_net (~381K + small CNN params)
+
+**Stats verdict**: **CONFIRM_IMPROVEMENT** (5 SIG / 25 pooled, 1 marginal)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **NABF** ↓ | -0.012 | +0.671 | LARGE | 0.0000 |
+| QSF | +0.085 | +0.543 | LARGE | 0.0000 |
+| PSNR | +0.162 | +0.228 | small | 0.0001 |
+| RMSE | -0.008 | +0.228 | small | 0.0000 |
+| **QMI** | +0.007 | +0.074 | trivial | 0.0016 (best Module B) |
+
+**Regression**: QM δ=-0.731 LARGE (≈ Saliency, Mean), VAR -0.529 L, MI -0.443 m, QY -0.267 s.
+
+**Per-modality** (notable):
+- CT: **9 SIG** (cao nhất Module B, vs Saliency 6, Mean 6)
+- PET: **8 SIG** (cao nhất Module B, vs Saliency 7, Mean 6)
+- SPECT: 2 SIG (tie với toàn bộ Module B)
+
+**Insight quan trọng — hypothesis partially confirmed**:
+- Learnable thắng per-modality CT/PET nhưng **thua pooled SIG count** (5 vs Saliency 6) — vì pooled phải robust qua cả 3 modal mà Learnable yếu ở SPECT.
+- QMI gain LARGEST của Module B (δ=+0.074, Saliency chỉ +0.047) → CNN data-driven học được mutual information feature tốt hơn gradient heuristic.
+- QM regression không tệ hơn Saliency → trade-off floor đạt rồi (LARGE ở mọi variant).
+
+**Quyết định Module B**: B.3 Saliency = winner default (pooled robustness). B.4 Learnable = runner-up + có giá trị làm ablation entry "data-driven không thắng heuristic khi pooled".
+
+**Files**: `results_v2/CDDFuse-PixelSelect-Learnable/`, `_stats/20260504_224006_PixelSelect-Learnable_vs_CDDFuse/`
+
+---
 
 ### 2026-05-04 18:25 · `CDDFuse-PixelSelect-Saliency` (B.3) — train + stats
 
@@ -412,10 +474,10 @@ So sánh 4 cách thay thế target `max(I_y, I_ir)` trong loss `L_int^II`. Archi
 - [ ] Friedman + Nemenyi 4-way + CD diagram cho Module A
 - [x] ~~Implement + train `PixelSelect-Mean` (B.2)~~ — DONE 2026-05-04 13:30, MIXED
 - [x] ~~Implement + train `PixelSelect-Saliency` (B.3)~~ — DONE 2026-05-04 18:25, CONFIRM_IMPROVEMENT
-- [ ] **NEXT**: Implement + train `PixelSelect-Learnable` (B.4) — small CNN predict weight
-- [ ] Friedman + Nemenyi 4-way + CD diagram cho Module B (sau B.4)
-- [ ] Module B winner identified (front-runner: B.3 Saliency)
-- [ ] Combined: A.2 Gated × B.{winner} → test phá trade-off
+- [x] ~~Implement + train `PixelSelect-Learnable` (B.4)~~ — DONE 2026-05-04 22:40, CONFIRM_IMPROVEMENT
+- [x] ~~Module B winner identified~~ — **B.3 Saliency** (best pooled SIG, robustness)
+- [ ] **NEXT**: Friedman + Nemenyi 4-way + CD diagram cho Module B
+- [ ] Combined: **A.2 Gated × B.3 Saliency** → test phá trade-off NABF↑/QM↓
 - [ ] Re-run winner Combined với 25 epoch (final)
 - [ ] Update `results_v2/zscore_ranking.csv` với composite z mới sau Combined
 

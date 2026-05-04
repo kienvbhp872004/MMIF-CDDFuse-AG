@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-PixelSelect-Learnable",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-04T14:54:24.884057Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "5132cbcf75f329002dc5c93cf3d4a3faae42e1f8fa9a132c65f1300cab602748"
+  }
+}
