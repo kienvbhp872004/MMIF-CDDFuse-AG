@@ -41,6 +41,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 SCRIPT_DIR = Path(__file__).resolve().parent  # models/MMIF-CDDFuse/variants/
 CDDFUSE_DIR = SCRIPT_DIR.parent                # models/MMIF-CDDFuse/
@@ -201,7 +202,9 @@ def train(args):
         model.train()
         t0 = time.time()
         ep_total = ep_int = ep_grad = ep_dec = 0.0
-        for mri, src in loader:
+        n_seen = 0
+        pbar = tqdm(loader, desc=f"ep {epoch+1:02d}/{args.epochs}", dynamic_ncols=True, leave=False)
+        for mri, src in pbar:
             mri = mri.to(device); src = src.to(device)
             fused = model(mri, src)
             # Fusionloss: (image_vis, image_ir, generated)
@@ -215,6 +218,9 @@ def train(args):
             torch.nn.utils.clip_grad_norm_(model.trainable_params(), max_norm=0.01)
             optim.step()
             ep_total += float(loss); ep_int += float(loss_int); ep_grad += float(loss_grad)
+            n_seen += 1
+            pbar.set_postfix(loss=f"{ep_total/n_seen:.4f}", int=f"{ep_int/n_seen:.4f}", grad=f"{ep_grad/n_seen:.4f}")
+        pbar.close()
         sched.step()
         n_b = max(1, len(loader))
         ep_total /= n_b; ep_int /= n_b; ep_grad /= n_b
