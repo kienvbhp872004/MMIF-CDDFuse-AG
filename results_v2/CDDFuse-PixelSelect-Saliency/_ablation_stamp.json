@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-PixelSelect-Saliency",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-04T09:34:47.587384Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "1f66990d4091d9f53f738c377b3a4f556dfb644d15651cfc371859d4869ba7ba"
+  }
+}

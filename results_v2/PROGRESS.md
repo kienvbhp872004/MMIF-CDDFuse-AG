@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-04 13:30 |
-| Variants completed | 4/4 Module A + 1/4 Module B (Mean) |
-| Latest activity | B.2 Mean stats: **MIXED** — NABF +0.669 (cao nhất tới giờ) nhưng QM -0.735 LARGE (đẩy trade-off mạnh hơn Gated) |
-| Status | Mean KHÔNG giải quyết QM regression — confirm trade-off inherent. Tiếp tục B.3 Saliency, B.4 Learnable |
-| Next planned | Code + train `PixelSelect-Saliency` (B.3) — gradient-weighted thay max |
+| Latest update | 2026-05-04 18:25 |
+| Variants completed | 4/4 Module A + 2/4 Module B (Mean, Saliency) |
+| Latest activity | B.3 Saliency stats: **CONFIRM_IMPROVEMENT** — 6 SIG (best Module B), NABF +0.671 ≈ Mean nhưng giữ QM regression không tệ hơn (-0.732 vs Mean -0.735) |
+| Status | Saliency thắng Mean ở SIG count (6 vs 4), confirm hypothesis "gradient-weighted = sweet spot". Tiếp tục B.4 Learnable để hoàn tất 4/4 |
+| Next planned | Code + train `PixelSelect-Learnable` (B.4) — small CNN dự đoán weight per-pixel |
 
 ---
 
@@ -69,7 +69,76 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 
 ---
 
+## Module B — PixelSelect (target: fix QM regression của Module A)
+
+So sánh 4 cách thay thế target `max(I_y, I_ir)` trong loss `L_int^II`. Architecture giữ FuseRule=Sum (0 params).
+
+| # | Variant | Cơ chế | Trạng thái | Verdict | Pooled SIG |
+|---|---|---|---|---|---|
+| B.1 | `PixelSelect-Max` (baseline) | `max(y, ir)` per-pixel | ✓ có sẵn (CDDFuse_MIF.pth) | reference | — |
+| B.2 | `PixelSelect-Mean` | `0.5*(y+ir)` | ✓ CPU 10 ep + stats | MIXED | 4/25 |
+| B.3 | `PixelSelect-Saliency` | `\|∇y\|/(\|∇y\|+\|∇ir\|)` weighted | ✓ CPU 10 ep + stats | **CONFIRM_IMPROVEMENT** | **6/25** |
+| B.4 | `PixelSelect-Learnable` | small CNN predict weight | pending | — | — |
+
+### Module B — comparison (B.2 vs B.3)
+
+| Metric | Mean δ | Saliency δ | Winner |
+|---|---|---|---|
+| **NABF** ↓ | +0.669 L | +0.671 L | tie (Saliency nhỉnh) |
+| QSF ↑ | +0.591 L | +0.568 L | Mean |
+| PSNR ↑ | +0.251 s | +0.236 s | Mean (tiny) |
+| RMSE ↓ | +0.251 s | +0.236 s | Mean (tiny) |
+| QMI ↑ | n/a | +0.047 t SIG | **Saliency** (extra SIG metric) |
+| QM ↑ (regression) | -0.735 L | -0.732 L | Saliency (nhỉnh) |
+| VAR ↑ (regression) | -0.522 L | -0.524 L | tie |
+| Pooled SIG | 4/25 | **6/25** | **Saliency** |
+
+#### Phát hiện B.3 vs B.2
+
+1. **Saliency = sweet spot xác nhận**. Hypothesis ban đầu (gradient-weighted preserve sharper pixel theo gradient → gần Max nhưng smooth hơn) → **đúng**: Saliency thắng Mean về SIG count (6 vs 4) mà KHÔNG làm tệ thêm QM regression.
+2. **Trade-off NABF↑ vs QM↓ vẫn inherent**. Saliency δ_QM = -0.732 LARGE, gần như không khác Mean. → Module B alone không đủ giải quyết QM. Cần combine với Module A winner hoặc thêm loss component (S5 FreqLoss).
+3. **QMI lên SIG**. Saliency duy nhất trong Module B có QMI SIG (Mean chỉ marginal QCB). → Saliency preserve mutual information tốt hơn Mean — phù hợp với việc weight theo gradient (giữ vùng informative).
+
+---
+
 ## Variants (chronological)
+
+### 2026-05-04 18:25 · `CDDFuse-PixelSelect-Saliency` (B.3) — train + stats
+
+**Hypothesis**: Gradient-weighted target `w·y + (1-w)·ir` với `w = |∇y| / (|∇y|+|∇ir|)` preserve sharper pixel (gần Max-rule) nhưng smooth ở vùng ít gradient → kỳ vọng cải thiện NABF tương đương Mean nhưng QM ít regression hơn.
+
+**Module**: `variants/losses.py::FusionLossB(pixel_select='saliency')`. Sobel kernel via `register_buffer` (device-agnostic). FuseRule giữ Sum (IdentitySum, 0 params). Loss target khác biệt duy nhất.
+
+**Training config**: CPU 10 ep, batch 2, seed 42, fine-tune BaseFuseLayer + DetailFuseLayer (~381K trainable)
+
+**Stats verdict**: **CONFIRM_IMPROVEMENT** (6 SIG / 25 pooled — best Module B tới giờ)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **NABF** ↓ | -0.011 | **+0.671** | LARGE | 0.0000 |
+| QSF | +0.084 | +0.568 | LARGE | 0.0000 |
+| PSNR | +0.175 | +0.236 | small | 0.0001 |
+| RMSE | -0.009 | +0.236 | small | 0.0000 |
+| **QMI** | +0.005 | +0.047 | trivial | 0.0134 (SIG) |
+
+**Regression**:
+- QM δ = -0.732 LARGE (≈ Mean -0.735, không tệ hơn)
+- VAR δ = -0.524 LARGE
+- MI δ = -0.429 medium
+- QY δ = -0.302 small
+
+**Per-modality**: CT 6 SIG + 3 MARG, PET 7 SIG + 1 MARG (cao nhất Module B), SPECT 2 SIG. SPECT vẫn yếu nhất (giống pattern toàn bộ).
+
+**Insight quan trọng — hypothesis confirmed**:
+- Saliency thắng Mean về SIG count (6 vs 4) mà KHÔNG làm tệ thêm QM regression.
+- Cơ chế: gradient-weighted giữ pixel có gradient lớn (sharp edges) → giảm artifact ở boundary giống Max nhưng smooth ở vùng flat → cải thiện QMI (Mean không có).
+- Trade-off NABF↑ vs QM↓ vẫn LARGE → Module B alone không phá được trade-off. Cần combine A.2 Gated × B.3 Saliency hoặc thêm S5 FreqLoss.
+
+**Quyết định**: ITERATE → Module B candidate winner. Chạy B.4 Learnable để hoàn tất 4/4 → Friedman 4-way → chốt Module B winner. Saliency là front-runner.
+
+**Files**: `results_v2/CDDFuse-PixelSelect-Saliency/`, `_stats/20260504_182458_PixelSelect-Saliency_vs_CDDFuse/`
+
+---
 
 ### 2026-05-04 13:30 · `CDDFuse-PixelSelect-Mean` (B.2) — train + stats
 
@@ -340,9 +409,14 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 - [x] ~~Implement + train `FuseRule-ChannelMoE`~~ — DONE 2026-05-04
 - [x] ~~Run stats `FuseRule-ChannelMoE` vs baseline~~ — DONE 2026-05-04 01:10, MIXED (worst capacity)
 - [x] ~~Module A winner identified~~ — **A.2 Gated** (best NABF, least QM regression)
-- [ ] **NEXT**: Friedman + Nemenyi 4-way + CD diagram cho Module A
-- [ ] Module B (PixelSelect alternatives — critical để fix QM regression của Module A)
-- [ ] Re-run winner Gated với 25 epoch (final, sau Module B xong)
+- [ ] Friedman + Nemenyi 4-way + CD diagram cho Module A
+- [x] ~~Implement + train `PixelSelect-Mean` (B.2)~~ — DONE 2026-05-04 13:30, MIXED
+- [x] ~~Implement + train `PixelSelect-Saliency` (B.3)~~ — DONE 2026-05-04 18:25, CONFIRM_IMPROVEMENT
+- [ ] **NEXT**: Implement + train `PixelSelect-Learnable` (B.4) — small CNN predict weight
+- [ ] Friedman + Nemenyi 4-way + CD diagram cho Module B (sau B.4)
+- [ ] Module B winner identified (front-runner: B.3 Saliency)
+- [ ] Combined: A.2 Gated × B.{winner} → test phá trade-off
+- [ ] Re-run winner Combined với 25 epoch (final)
 - [ ] Update `results_v2/zscore_ranking.csv` với composite z mới sau Combined
 
 ---
