@@ -1,0 +1,14 @@
+{
+  "variant_name": "CDDFuse-PixelSelect-Mean",
+  "based_on": "CDDFuse",
+  "datetime": "2026-05-03T21:23:19.707359Z",
+  "train_mode": "light_retrain",
+  "device": "cpu",
+  "gpu_detected": "Tesla P100-PCIE-16GB",
+  "epochs_phase2": 10,
+  "batch_size": 2,
+  "seed": 42,
+  "checkpoint": {
+    "sha256": "3e9d3781ee15ad27ff2fafbdb11986e534fe8c0ff97d3750257d3c4913238978"
+  }
+}

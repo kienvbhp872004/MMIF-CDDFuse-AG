@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-04 01:10 |
-| Variants completed | 4 / 4 Module A (Sum + Gated + CrossAttn + ChannelMoE) |
-| Latest activity | A.4 ChannelMoE stats: **MIXED** (4 SIG, worst QM regression -0.745 do capacity nhỏ nhất 5K) |
-| Status | **Module A winner: Gated (A.2)** — best NABF +0.596, least QM regression. Sẵn sàng Friedman 4-way + bắt đầu Module B |
-| Next planned | Friedman + Nemenyi CD diagram cho Module A → start Module B (PixelSelect alternatives) |
+| Latest update | 2026-05-04 13:30 |
+| Variants completed | 4/4 Module A + 1/4 Module B (Mean) |
+| Latest activity | B.2 Mean stats: **MIXED** — NABF +0.669 (cao nhất tới giờ) nhưng QM -0.735 LARGE (đẩy trade-off mạnh hơn Gated) |
+| Status | Mean KHÔNG giải quyết QM regression — confirm trade-off inherent. Tiếp tục B.3 Saliency, B.4 Learnable |
+| Next planned | Code + train `PixelSelect-Saliency` (B.3) — gradient-weighted thay max |
 
 ---
 
@@ -70,6 +70,42 @@ So sánh các cách thay thế phép `A + B` trong `BaseFuseLayer(A + B)` và `D
 ---
 
 ## Variants (chronological)
+
+### 2026-05-04 13:30 · `CDDFuse-PixelSelect-Mean` (B.2) — train + stats
+
+**Hypothesis**: Mean target `(I_y + I_ir)/2` tránh boundary artifact của max-rule → kỳ vọng giảm NABF mà KHÔNG hỏng QM/VAR (mean ít aggressive hơn max).
+
+**Module**: `variants/losses.py::FusionLossB(pixel_select='mean')`. Architecture giữ nguyên FuseRule=Sum (IdentitySum, 0 params). Loss target là khác biệt duy nhất.
+
+**Training config**: CPU 10 ep, batch 2, seed 42, fine-tune BaseFuseLayer + DetailFuseLayer (~381K trainable, không có loss params)
+
+**Stats verdict**: **MIXED** (4 SIG / 25 pooled, QCB marginal)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **NABF** ↓ | -0.011 | **+0.669** | LARGE (best so far!) | 0.0000 |
+| QSF | +0.084 | +0.591 | LARGE | 0.0000 |
+| PSNR | +0.191 | +0.251 | small | 0.0000 |
+| RMSE | -0.009 | +0.251 | small | 0.0000 |
+| QCB | +0.004 | +0.030 | trivial | 0.1214 (MARGINAL) |
+
+**Regression** (worse than Gated/CrossAttn):
+- **QM δ = -0.735 LARGE** ❌
+- **VAR δ = -0.522 LARGE** (lên LARGE — Module A chỉ medium)
+- MI δ = -0.426 medium
+- QY δ = -0.319 small
+
+**Insight quan trọng — hypothesis sai**:
+- Tôi predict Mean ít aggressive hơn Max → giữ QM/VAR tốt hơn. **Sai**.
+- Thực tế: Mean blur cả 2 modality (mỗi pixel = avg) → output smoother hơn cả Max-rule (chỉ chọn sharper pixel).
+- → Mean **đẩy trade-off mạnh hơn**: NABF cải thiện nhiều hơn (+0.669 vs Gated +0.596) nhưng QM/VAR cũng tệ hơn (-0.735 vs -0.602, -0.522 vs -0.437).
+- Module B Mean **không giải quyết** QM regression như kỳ vọng. Trade-off có vẻ inherent với mọi soft fusion, kể cả khi soft xuất hiện ở loss target chứ không ở fusion rule.
+
+**Quyết định**: ITERATE. Không phải Module B winner. Hi vọng B.3 Saliency (gradient-weighted) có thể break pattern vì nó preserve sharper pixel theo gradient magnitude — gần với Max nhưng smooth hơn.
+
+**Files**: `results_v2/CDDFuse-PixelSelect-Mean/`, `_stats/20260504_133026_PixelSelect-Mean_vs_CDDFuse/`
+
+---
 
 ### 2026-05-04 01:10 · `CDDFuse-FuseRule-ChannelMoE` (A.4) — train + stats
 
