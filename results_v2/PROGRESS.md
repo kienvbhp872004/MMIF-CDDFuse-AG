@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-04 22:40 |
-| Variants completed | **4/4 Module A + 4/4 Module B** ✓ |
-| Latest activity | B.4 Learnable stats: **CONFIRM_IMPROVEMENT** — 5 SIG pooled, nhưng **CT 9 + PET 8 cao nhất Module B** ở per-modality. Pooled tie với Saliency. |
-| Status | Module B đầy đủ 4/4. Saliency thắng pooled (6 SIG); Learnable thắng per-modal (CT/PET). QM trade-off LARGE ở cả 4 → confirm inherent. |
-| Next planned | Friedman + Nemenyi 4-way Module B → chốt winner → Combined A.2 Gated × B.{winner} |
+| Latest update | 2026-05-05 15:15 |
+| Variants completed | 4/4 Module A + 4/4 Module B + **Combined (A.2×B.3) ✓ trên P100 GPU 25 epoch (paper config)** |
+| Latest activity | Combined-Gated-Saliency stats: **MIXED** — 4 SIG pooled (thua Saliency alone 6), NHƯNG **QM regression giảm rõ rệt (-0.587 vs -0.732 = đỡ ~20%)**. Trade-off floor được đẩy lùi nhưng SIG count giảm. |
+| Status | Combined không thắng pooled SIG count nhưng **lần đầu giảm QM trade-off** sau 9 variants. Hypothesis "trade-off inherent" cần refine: depth/architecture có ảnh hưởng. |
+| Next planned | Friedman 4-way Module A & B (CD diagrams) → composite z-score Combined → re-run Combined với extended loss (S5 FreqLoss?) hoặc decide thesis writeup |
 
 ---
 
@@ -127,7 +127,85 @@ So sánh 4 cách thay thế target `max(I_y, I_ir)` trong loss `L_int^II`. Archi
 
 ---
 
+## Combined — A.2 Gated × B.3 Saliency
+
+Test giả thuyết Module A winner × Module B winner sẽ phá trade-off NABF↑/QM↓.
+
+| | Sum baseline | A.2 Gated alone | B.3 Saliency alone | **Combined A.2×B.3** |
+|---|---|---|---|---|
+| NABF δ | — | +0.596 L | +0.671 L | +0.659 L |
+| QSF δ | — | +0.602 L | +0.568 L | **+0.679 L** ⭐ |
+| **QM δ** (regression) | — | -0.602 L | -0.732 L | **-0.587 L** ⭐ |
+| QMI δ | — | -0.196 s | +0.047 t SIG | -0.271 s |
+| Pooled SIG | reference | 5 | 6 | 4 |
+| Per-modal SIG | — | CT 4, PET 5, SPECT 2 | CT 6, PET 7, SPECT 2 | CT 2, PET 5, SPECT 2 |
+| Train config | — | CPU 10 ep | CPU 10 ep | **GPU 25 ep ✓** |
+
+### Phát hiện Combined
+
+**1. QM trade-off lần đầu giảm (-0.587 vs Saliency alone -0.732)**. Sau 9 variants tất cả ≥-0.602, đây là lần đầu thấy regression < -0.6. Hypothesis "inherent" cần refine:
+- Trade-off **floor không phải hard inherent** — có thể đẩy lùi bằng combine.
+- Architecture-level fix (Gated fusion rule) + Loss-level fix (Saliency target) **tương trợ một phần** ở QM.
+
+**2. Pooled SIG giảm (4 vs 6 alone)**. Combined không thắng pooled vì:
+- QSF +0.679 mạnh nhất nhưng các metric khác bị "loãng" — interaction giữa hai cải tiến không đơn cộng.
+- QMI từ +0.047 SIG (Saliency alone) → -0.271 NS (Combined) — Gated fusion làm hỏng MI preservation của Saliency target.
+
+**3. Train config khác (GPU 25 ep) cũng làm khó so sánh trực tiếp**. A.2/B.3 chạy CPU 10 ep, Combined chạy P100 GPU 25 ep. → Cần re-run A.2 và B.3 ở GPU 25 ep cho apples-to-apples.
+
+**4. Per-modal CT yếu (2 SIG)** vs các Module B alone (6-9 SIG). PET vẫn giữ (5 SIG). → Combined có vấn đề với CT đặc biệt.
+
+### Quyết định Combined
+
+- **Soft win**: lần đầu giảm QM trade-off, mở hướng cho thesis "trade-off có thể được attenuated".
+- **Hard win**: KHÔNG đạt — pooled SIG thấp hơn individual winners.
+- **Next step**: re-run A.2 Gated (GPU 25 ep) và B.3 Saliency (GPU 25 ep) làm baseline so sánh fair → có thể Combined sẽ thắng khi all-25-ep-GPU.
+- **Thesis framing**: report Combined như "ablation case study" cho thấy trade-off attenuation, không phải winner default.
+
+---
+
 ## Variants (chronological)
+
+### 2026-05-05 15:15 · `CDDFuse-Combined-Gated-Saliency` — train + stats (P100 GPU)
+
+**Hypothesis**: Combine A.2 Gated (Module A winner) × B.3 Saliency (Module B winner) sẽ phá trade-off NABF↑/QM↓ — vì hai cải tiến target hai cấp khác nhau (architecture-level vs loss-level).
+
+**Module**: GatedFuseLayer (16K) cho cả Base + Detail + FusionLossB(pixel_select='saliency').
+
+**Training config (FIRST GPU run)**:
+- Hardware: **Tesla P100-PCIE-16GB** (sm_60)
+- Torch: **2.5.1+cu121** (downgraded từ Kaggle default torch 2.10 để support sm_60)
+- Epochs: **25** (paper config, đầu tiên đạt được)
+- Batch: **4** (paper config)
+- Seed: 42
+- Wall time: ~1h (vs CPU 3-4h cho 10 ep)
+
+**Stats verdict**: **MIXED** (4 SIG / 25 pooled, 1 marginal)
+
+| Metric | Mean Δ | Cliff's δ | Effect | p_adj |
+|---|---|---|---|---|
+| **QSF** | +0.068 | **+0.679** | LARGE (best của ALL variants) | 0.0000 |
+| **NABF** ↓ | -0.013 | +0.659 | LARGE | 0.0000 |
+| PSNR | +0.163 | +0.225 | small | 0.0038 |
+| RMSE | -0.008 | +0.225 | small | 0.0000 |
+| EN | +0.039 | +0.025 | trivial | 0.1849 (MARGINAL) |
+
+**Regression** — quan trọng:
+- **QM δ = -0.587 LARGE** (vs B.3 alone -0.732, Gated alone -0.602) — **lần đầu đạt < -0.6** sau 9 variants
+- VAR -0.513 L, MI -0.384 m, QY -0.326 s, **QMI -0.271 small** (Saliency alone +0.047 SIG; Gated phá QMI)
+
+**Per-modality**: CT 2 SIG (yếu), PET 5 SIG, SPECT 2 SIG. CT là điểm yếu lớn của Combined.
+
+**Insight quan trọng**:
+- **Trade-off floor không hard inherent** — sau 9 variants ≥ -0.6, Combined đẩy về -0.587 → có thể attenuate bằng combine.
+- **Pooled SIG giảm vì interaction**: Gated phá QMI gain của Saliency. Hai cải tiến **không tương trợ ở mọi metric**.
+- **Apples-to-apples không công bằng**: Combined GPU 25 ep, A.2/B.3 CPU 10 ep. Chưa kết luận chắc chắn Combined < individual cho đến khi re-run.
+
+**Quyết định**: SOFT WIN. Report như case study trade-off attenuation. Hard win cần re-run A.2 + B.3 ở 25 ep GPU.
+
+**Files**: `results_v2/CDDFuse-Combined-Gated-Saliency/`, `_stats/20260505_151513_Combined-Gated-Saliency_vs_CDDFuse/`
+
+---
 
 ### 2026-05-04 22:40 · `CDDFuse-PixelSelect-Learnable` (B.4) — train + stats
 
@@ -476,8 +554,10 @@ So sánh 4 cách thay thế target `max(I_y, I_ir)` trong loss `L_int^II`. Archi
 - [x] ~~Implement + train `PixelSelect-Saliency` (B.3)~~ — DONE 2026-05-04 18:25, CONFIRM_IMPROVEMENT
 - [x] ~~Implement + train `PixelSelect-Learnable` (B.4)~~ — DONE 2026-05-04 22:40, CONFIRM_IMPROVEMENT
 - [x] ~~Module B winner identified~~ — **B.3 Saliency** (best pooled SIG, robustness)
-- [ ] **NEXT**: Friedman + Nemenyi 4-way + CD diagram cho Module B
-- [ ] Combined: **A.2 Gated × B.3 Saliency** → test phá trade-off NABF↑/QM↓
+- [x] ~~Combined: **A.2 Gated × B.3 Saliency**~~ — DONE 2026-05-05 (P100 GPU 25 ep), MIXED (QM giảm về -0.587 nhưng SIG count thấp hơn)
+- [ ] **NEXT**: re-run A.2 Gated + B.3 Saliency với GPU 25 ep cho fair comparison
+- [ ] Friedman + Nemenyi 4-way + CD diagram cho Module A & B
+- [ ] Composite z-score cho tất cả variants → final ranking
 - [ ] Re-run winner Combined với 25 epoch (final)
 - [ ] Update `results_v2/zscore_ranking.csv` với composite z mới sau Combined
 
