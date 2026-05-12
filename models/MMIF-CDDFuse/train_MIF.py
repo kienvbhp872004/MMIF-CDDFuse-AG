@@ -2,51 +2,50 @@
 Paper-faithful training cho Medical Image Fusion (CDDFuse sect 5.2).
 
 Bám train.py gốc:
-- 120 epochs total (40 Phase I + 80 Phase II)
+- 120 epochs (40 Phase I + 80 Phase II)
 - Adam LR 1e-4, StepLR γ=0.5 mỗi 20 ep
-- 4 optimizers riêng (Encoder, Decoder, BaseFuseLayer, DetailFuseLayer)
-- Phase I: train Encoder + Decoder với recon + decomp CC + SSIM + TV gradient loss
-- Phase II: train tất cả 4 với fusion loss + decomp regularizer
-- Coefficients α1=1, α2=2, α3=5(code)/10(paper text), α4=2 → giữ theo code α3=5
-- Clip grad 0.01
+- 4 optimizers riêng: Encoder, Decoder, BaseFuseLayer, DetailFuseLayer
+  (+ optional GatedB/GatedD optimizers cho Combined variant)
+- Phase I: train Encoder + Decoder với recon + decomp CC + SSIM + TV gradient
+- Phase II: train tất cả với fusion loss + decomp regularizer
 
-Khác biệt với train.py gốc:
-- Data: H5 từ Harvard medical (mri_patchs + src_patchs, 130 train pairs)
-- Batch: default 8 (paper text 16 — chỉnh được qua --batch). RTX 3050 4GB chịu được 4-8.
-- Variant flag: swap BaseFuseLayer + DetailFuseLayer hoặc Fusionloss theo registry.
+Variants:
+- CDDFuse (default): baseline paper (sum + max-target Fusionloss)
+- Combined-Gated-Saliency: Gated fusion + Saliency target FusionLossB
+
+Save:
+- Checkpoint với keys paper convention + GatedB/GatedD nếu có
+- train_history.json (loss per epoch, phase, lr, dt) cho thesis figure
 
 Usage:
-    python train_MIF.py                                    # CDDFuse baseline (paper-faithful)
-    python train_MIF.py --variant Combined-Gated-Saliency  # variant
+    python train_MIF.py                                    # baseline
+    python train_MIF.py --variant Combined-Gated-Saliency  # combined
 """
 import argparse
 import datetime
+import json
 import os
-import sys
 import time
 from pathlib import Path
 
+import h5py
 import kornia
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-import h5py
-import numpy as np
-
 from net import (BaseFeatureExtraction, DetailFeatureExtraction,
                  Restormer_Decoder, Restormer_Encoder)
 from utils.loss import Fusionloss, cc
-
-# Variant support (Module A: fuse layers, Module B: loss)
-from variants.modules import GatedFuseLayer, IdentitySum
 from variants.losses import FusionLossB
+from variants.modules import GatedFuseLayer
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
-# ---------- dataset (mri_patchs + src_patchs)
+# ---------- dataset
 class MIFH5Dataset(Dataset):
     def __init__(self, h5_path):
         self.path = h5_path
@@ -61,69 +60,31 @@ class MIFH5Dataset(Dataset):
             k = self.keys[idx]
             mri = np.array(f['mri_patchs'][k])
             src = np.array(f['src_patchs'][k])
-        return torch.Tensor(src), torch.Tensor(mri)  # (VIS-role, IR-role)
+        return torch.Tensor(src), torch.Tensor(mri)
 
 
-# ---------- variant builders (Module A + B)
+# (use_gated, pixel_select)
 VARIANT_REGISTRY = {
-    "CDDFuse":                  ("paper", "max"),  # baseline paper-faithful
-    "FuseRule-Gated":           ("gated", "max"),
-    "Combined-Gated-Saliency":  ("gated", "saliency"),
+    "CDDFuse":                  (False, "max"),
+    "Combined-Gated-Saliency":  (True,  "saliency"),
 }
 
 
-def build_fuse_layers(variant_arch, device):
-    """Returns (BaseFuseLayer, DetailFuseLayer) modules."""
-    if variant_arch == "paper":
-        base = BaseFeatureExtraction(dim=64, num_heads=8)
-        detail = DetailFeatureExtraction(num_layers=1)
-    elif variant_arch == "gated":
-        # Variant Module A.2: Gated soft fusion thay sum
-        base = nn.Sequential(GatedFuseLayerWrapper(64), BaseFeatureExtraction(dim=64, num_heads=8))
-        detail = nn.Sequential(GatedFuseLayerWrapper(64), DetailFeatureExtraction(num_layers=1))
-    else:
-        raise ValueError(f"Unknown variant_arch: {variant_arch}")
-    return base.to(device), detail.to(device)
-
-
-class GatedFuseLayerWrapper(nn.Module):
-    """Wraps GatedFuseLayer to accept concatenated [B, 2C, H, W] input and output [B, C, H, W].
-    Paper code: BaseFuseLayer(feature_I+feature_V). With Gated: split rồi gate."""
-    def __init__(self, dim):
-        super().__init__()
-        self.dim = dim
-        self.gated = GatedFuseLayer(dim)
-
-    def forward(self, x_sum):
-        # x_sum đã là feature_I + feature_V theo paper convention.
-        # Để gated làm việc, cần split lại — không thể từ sum. Phải refactor forward path.
-        # → Workaround: dùng x_sum như identity (gated = sum at init) cho compatibility.
-        # Để dùng đúng gated, cần adapt train loop để feed feature_I/V riêng (xem main loop).
-        return x_sum
-
-
-def build_loss(pixel_select, device):
-    """Returns FusionLossB instance (replaces Fusionloss for variant Module B)."""
-    return FusionLossB(pixel_select=pixel_select).to(device)
-
-
-# ---------- training
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--variant", default="CDDFuse", choices=list(VARIANT_REGISTRY.keys()))
     parser.add_argument("--h5", default="data/MIF_train_imgsize_128_stride_64.h5")
     parser.add_argument("--output", default="models/")
     parser.add_argument("--num_epochs", type=int, default=120)
-    parser.add_argument("--epoch_gap", type=int, default=40, help="Phase I epochs")
-    parser.add_argument("--batch", type=int, default=2)
-    parser.add_argument("--amp", action="store_true", help="Mixed precision fp16 (giảm VRAM ~50%)")
+    parser.add_argument("--epoch_gap", type=int, default=40)
+    parser.add_argument("--batch", type=int, default=8)
+    parser.add_argument("--amp", action="store_true")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
-    # Loss coefficients (paper Eq. 7 + 10)
-    parser.add_argument("--coeff_mse_VF", type=float, default=1.0)   # α1
+    parser.add_argument("--coeff_mse_VF", type=float, default=1.0)
     parser.add_argument("--coeff_mse_IF", type=float, default=1.0)
-    parser.add_argument("--coeff_decomp", type=float, default=2.0)   # α2, α4
-    parser.add_argument("--coeff_tv", type=float, default=5.0)       # α3 (code=5, paper text=10)
+    parser.add_argument("--coeff_decomp", type=float, default=2.0)
+    parser.add_argument("--coeff_tv", type=float, default=5.0)
     parser.add_argument("--clip_grad_norm", type=float, default=0.01)
     parser.add_argument("--optim_step", type=int, default=20)
     parser.add_argument("--optim_gamma", type=float, default=0.5)
@@ -131,137 +92,137 @@ def main():
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"[train_MIF] device={device} variant={args.variant} epochs={args.num_epochs} "
-          f"(phase I={args.epoch_gap}, phase II={args.num_epochs - args.epoch_gap}) batch={args.batch}")
+    use_gated, pixel_select = VARIANT_REGISTRY[args.variant]
+    print(f"[train_MIF] device={device} variant={args.variant} "
+          f"(use_gated={use_gated}, pixel_select={pixel_select}) "
+          f"epochs={args.num_epochs} (P1={args.epoch_gap}, P2={args.num_epochs - args.epoch_gap}) "
+          f"batch={args.batch} amp={args.amp}")
 
-    variant_arch, pixel_select = VARIANT_REGISTRY[args.variant]
-
-    # Model — bám paper layout
+    # Model (paper architecture; gated_b/d only for Combined)
     encoder = Restormer_Encoder().to(device)
     decoder = Restormer_Decoder().to(device)
-    base_fuse, detail_fuse = build_fuse_layers(variant_arch, device)
+    base_fuse = BaseFeatureExtraction(dim=64, num_heads=8).to(device)
+    detail_fuse = DetailFeatureExtraction(num_layers=1).to(device)
+    gated_b = GatedFuseLayer(64).to(device) if use_gated else None
+    gated_d = GatedFuseLayer(64).to(device) if use_gated else None
 
-    # Optimizers (4 riêng như paper)
-    opts = [
-        torch.optim.Adam(encoder.parameters(),    lr=args.lr),
-        torch.optim.Adam(decoder.parameters(),    lr=args.lr),
-        torch.optim.Adam(base_fuse.parameters(),  lr=args.lr),
-        torch.optim.Adam(detail_fuse.parameters(),lr=args.lr),
-    ]
+    # Optimizers (4 paper + 2 if gated)
+    opt_enc = torch.optim.Adam(encoder.parameters(),     lr=args.lr)
+    opt_dec = torch.optim.Adam(decoder.parameters(),     lr=args.lr)
+    opt_bf  = torch.optim.Adam(base_fuse.parameters(),   lr=args.lr)
+    opt_df  = torch.optim.Adam(detail_fuse.parameters(), lr=args.lr)
+    opts_p1 = [opt_enc, opt_dec]
+    opts_p2 = [opt_enc, opt_dec, opt_bf, opt_df]
+    if use_gated:
+        opt_gb = torch.optim.Adam(gated_b.parameters(), lr=args.lr)
+        opt_gd = torch.optim.Adam(gated_d.parameters(), lr=args.lr)
+        opts_p2 += [opt_gb, opt_gd]
+    all_opts = list({id(o): o for o in opts_p1 + opts_p2}.values())
     scheds = [torch.optim.lr_scheduler.StepLR(o, step_size=args.optim_step, gamma=args.optim_gamma)
-              for o in opts]
+              for o in all_opts]
 
     # Losses
-    mse = nn.MSELoss()
-    l1 = nn.L1Loss()
-    # kornia 0.6+ API: SSIMLoss thay SSIM (returns loss = 1 - ssim)
-    if hasattr(kornia.losses, 'SSIMLoss'):
-        ssim_loss = kornia.losses.SSIMLoss(11, reduction='mean')
-    else:
-        ssim_loss = kornia.losses.SSIM(11, reduction='mean')  # fallback kornia 0.2 (paper)
-    if pixel_select == "max":
-        criteria_fusion = Fusionloss()  # paper default
-    else:
-        criteria_fusion = build_loss(pixel_select, device)  # variant Module B
+    mse = nn.MSELoss(); l1 = nn.L1Loss()
+    ssim_loss = (kornia.losses.SSIMLoss(11, reduction='mean')
+                 if hasattr(kornia.losses, 'SSIMLoss')
+                 else kornia.losses.SSIM(11, reduction='mean'))
+    criteria_fusion = Fusionloss() if pixel_select == "max" else FusionLossB(pixel_select=pixel_select).to(device)
 
     # Data
-    loader = DataLoader(MIFH5Dataset(args.h5),
-                        batch_size=args.batch,
-                        shuffle=True,
-                        num_workers=0,
-                        pin_memory=(device == "cuda"))
+    loader = DataLoader(MIFH5Dataset(args.h5), batch_size=args.batch, shuffle=True,
+                        num_workers=0, pin_memory=(device == "cuda"))
     print(f"[data ] {len(loader.dataset)} patches, {len(loader)} batches/epoch")
 
-    # Output
     out_dir = Path(args.output); out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%m-%d-%H-%M")
     ckpt_path = out_dir / f"CDDFuse-{args.variant}_MIF_{timestamp}.pth"
+    history_path = out_dir / f"CDDFuse-{args.variant}_MIF_{timestamp}_train_history.json"
 
     torch.backends.cudnn.benchmark = True
     scaler = torch.cuda.amp.GradScaler(enabled=(args.amp and device == "cuda"))
-    if args.amp:
-        print(f"[amp  ] mixed precision fp16 enabled")
+    if args.amp: print(f"[amp  ] fp16 enabled")
 
+    history = []
     for epoch in range(args.num_epochs):
         encoder.train(); decoder.train(); base_fuse.train(); detail_fuse.train()
+        if use_gated: gated_b.train(); gated_d.train()
         phase = 1 if epoch < args.epoch_gap else 2
+        t0 = time.time()
         pbar = tqdm(loader, desc=f"ep{epoch+1:03d}/{args.num_epochs} P{phase}",
                     dynamic_ncols=True, leave=False)
-        ep_loss = 0.0
+        ep_total = ep_int = ep_grad = 0.0
         n_seen = 0
 
         for src, mri in pbar:
-            # src = VIS-role (CT or PET_Y or SPECT_Y), mri = IR-role (anatomical)
             src, mri = src.to(device), mri.to(device)
-            for o in opts:
+            for o in all_opts:
                 o.zero_grad(set_to_none=True)
 
             with torch.cuda.amp.autocast(enabled=(args.amp and device == "cuda")):
-                if phase == 1:  # ====== Phase I: train Encoder + Decoder ======
+                if phase == 1:
                     f_V_B, f_V_D, _ = encoder(src)
                     f_I_B, f_I_D, _ = encoder(mri)
                     src_hat, _ = decoder(src, f_V_B, f_V_D)
                     mri_hat, _ = decoder(mri, f_I_B, f_I_D)
 
-                    cc_B = cc(f_V_B, f_I_B)
-                    cc_D = cc(f_V_D, f_I_D)
+                    cc_B = cc(f_V_B, f_I_B); cc_D = cc(f_V_D, f_I_D)
                     mse_V = 5 * ssim_loss(src, src_hat) + mse(src, src_hat)
                     mse_I = 5 * ssim_loss(mri, mri_hat) + mse(mri, mri_hat)
                     grad_loss = l1(kornia.filters.SpatialGradient()(src),
                                    kornia.filters.SpatialGradient()(src_hat))
                     loss_decomp = (cc_D ** 2) / (1.01 + cc_B)
-                    loss = (args.coeff_mse_VF * mse_V
-                            + args.coeff_mse_IF * mse_I
-                            + args.coeff_decomp * loss_decomp
-                            + args.coeff_tv * grad_loss)
-                else:  # ====== Phase II: train all 4 ======
+                    loss = (args.coeff_mse_VF * mse_V + args.coeff_mse_IF * mse_I
+                            + args.coeff_decomp * loss_decomp + args.coeff_tv * grad_loss)
+                    fusion_loss = torch.tensor(0.0, device=device)
+                else:
                     f_V_B, f_V_D, _ = encoder(src)
                     f_I_B, f_I_D, _ = encoder(mri)
-                    f_F_B = base_fuse(f_I_B + f_V_B)
-                    f_F_D = detail_fuse(f_I_D + f_V_D)
+                    if use_gated:
+                        f_F_B = base_fuse(gated_b(f_V_B, f_I_B))
+                        f_F_D = detail_fuse(gated_d(f_V_D, f_I_D))
+                    else:
+                        f_F_B = base_fuse(f_V_B + f_I_B)
+                        f_F_D = detail_fuse(f_V_D + f_I_D)
                     fused, _ = decoder(src, f_F_B, f_F_D)
-
-                    cc_B = cc(f_V_B, f_I_B)
-                    cc_D = cc(f_V_D, f_I_D)
+                    cc_B = cc(f_V_B, f_I_B); cc_D = cc(f_V_D, f_I_D)
                     loss_decomp = (cc_D ** 2) / (1.01 + cc_B)
-                    fusion_loss, _, _ = criteria_fusion(src, mri, fused)
+                    fusion_loss, l_int, l_grad = criteria_fusion(src, mri, fused)
                     loss = fusion_loss + args.coeff_decomp * loss_decomp
 
             scaler.scale(loss).backward()
-            if phase == 1:
-                scaler.unscale_(opts[0]); scaler.unscale_(opts[1])
-                nn.utils.clip_grad_norm_(encoder.parameters(), args.clip_grad_norm)
-                nn.utils.clip_grad_norm_(decoder.parameters(), args.clip_grad_norm)
-                scaler.step(opts[0]); scaler.step(opts[1])
-            else:
-                for o in opts:
-                    scaler.unscale_(o)
-                for m in (encoder, decoder, base_fuse, detail_fuse):
-                    nn.utils.clip_grad_norm_(m.parameters(), args.clip_grad_norm)
-                for o in opts:
-                    scaler.step(o)
+            active_opts = opts_p1 if phase == 1 else opts_p2
+            for o in active_opts: scaler.unscale_(o)
+            mods_p1 = [encoder, decoder]
+            mods_p2 = [encoder, decoder, base_fuse, detail_fuse] + ([gated_b, gated_d] if use_gated else [])
+            for m in (mods_p1 if phase == 1 else mods_p2):
+                nn.utils.clip_grad_norm_(m.parameters(), args.clip_grad_norm)
+            for o in active_opts: scaler.step(o)
             scaler.update()
 
-            ep_loss += float(loss); n_seen += 1
-            pbar.set_postfix(loss=f"{ep_loss/n_seen:.4f}", phase=phase)
+            ep_total += float(loss); n_seen += 1
+            if phase == 2: ep_int += float(l_int); ep_grad += float(l_grad)
+            pbar.set_postfix(loss=f"{ep_total/n_seen:.4f}", phase=phase)
 
         pbar.close()
-        scheds[0].step(); scheds[1].step()
-        if phase == 2:
-            scheds[2].step(); scheds[3].step()
-
-        # LR floor 1e-6
-        for o in opts:
+        for s in scheds: s.step()
+        for o in all_opts:
             for pg in o.param_groups:
-                if pg['lr'] < 1e-6:
-                    pg['lr'] = 1e-6
+                if pg['lr'] < 1e-6: pg['lr'] = 1e-6
 
-        print(f"[ep {epoch+1:03d}] phase={phase} loss={ep_loss/max(1,n_seen):.4f} "
-              f"lr={opts[0].param_groups[0]['lr']:.2e}")
+        dt = time.time() - t0
+        avg_loss = ep_total / max(1, n_seen)
+        lr = opt_enc.param_groups[0]['lr']
+        hist_entry = {"epoch": epoch + 1, "phase": phase, "loss": avg_loss,
+                      "int_loss": ep_int/max(1,n_seen), "grad_loss": ep_grad/max(1,n_seen),
+                      "lr": lr, "dt_sec": round(dt, 1)}
+        history.append(hist_entry)
+        print(f"[ep {epoch+1:03d}] P{phase} loss={avg_loss:.4f} lr={lr:.2e} ({dt:.1f}s)")
+        # Save history incrementally (crash-safe)
+        with open(history_path, 'w') as f:
+            json.dump(history, f, indent=2)
 
-    # Save (paper convention)
+    # Save checkpoint (paper convention + variant keys)
     state = {
         "DIDF_Encoder":    encoder.state_dict(),
         "DIDF_Decoder":    decoder.state_dict(),
@@ -270,8 +231,12 @@ def main():
         "variant":         args.variant,
         "args":            vars(args),
     }
+    if use_gated:
+        state["GatedB"] = gated_b.state_dict()
+        state["GatedD"] = gated_d.state_dict()
     torch.save(state, ckpt_path)
     print(f"[save ] {ckpt_path}")
+    print(f"[save ] {history_path}")
 
 
 if __name__ == "__main__":
