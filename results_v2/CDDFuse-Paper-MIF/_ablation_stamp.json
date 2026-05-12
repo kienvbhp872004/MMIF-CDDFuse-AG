@@ -1,0 +1,13 @@
+{
+  "variant_name": "CDDFuse-CDDFuse-PaperMIF",
+  "based_on": "CDDFuse paper sect 5.2",
+  "datetime": "2026-05-12T06:22:12.436993Z",
+  "train_mode": "full_paper_120ep_2phase",
+  "gpu": "Tesla P100-PCIE-16GB",
+  "epochs": 120,
+  "epoch_gap": 40,
+  "batch": 8,
+  "amp": true,
+  "seed": 42,
+  "ckpt_sha256": "f4646f5b920b19e3c9f3498a5a3483130fc03d53c37b0c127f0b7a3cdea999ad"
+}
