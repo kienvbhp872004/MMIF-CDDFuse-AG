@@ -67,6 +67,7 @@ class MIFH5Dataset(Dataset):
 VARIANT_REGISTRY = {
     "CDDFuse":                  (False, "max"),
     "Combined-Gated-Saliency":  (True,  "saliency"),
+    "Combined-Gated-Learnable": (True,  "learnable"),  # try B.4 Learnable (best per-modal CT/PET in light)
 }
 
 

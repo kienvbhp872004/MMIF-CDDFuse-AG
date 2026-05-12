@@ -34,7 +34,8 @@ VARIANT_REGISTRY: Dict[str, Tuple[Callable[[], nn.Module], Callable[[], nn.Modul
     "PixelSelect-Learnable": (lambda: IdentitySum(),            lambda: IdentitySum(),            "learnable", "light_retrain"),
 
     # Combined — Module A winner (Gated) × Module B winner (Saliency)
-    "Combined-Gated-Saliency": (lambda: GatedFuseLayer(64),       lambda: GatedFuseLayer(64),       "saliency",  "light_retrain"),
+    "Combined-Gated-Saliency":  (lambda: GatedFuseLayer(64),      lambda: GatedFuseLayer(64),      "saliency",  "light_retrain"),
+    "Combined-Gated-Learnable": (lambda: GatedFuseLayer(64),      lambda: GatedFuseLayer(64),      "learnable", "light_retrain"),
 }
 
 
