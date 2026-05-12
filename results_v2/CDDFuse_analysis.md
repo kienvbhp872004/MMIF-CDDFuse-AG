@@ -2,7 +2,9 @@
 
 > **Mục đích**: Tài liệu kỹ thuật phục vụ luận văn — phân tích sâu CDDFuse để xây dựng đề xuất cải tiến cho medical image fusion.
 > **Nguồn code**: [models/MMIF-CDDFuse/](../models/MMIF-CDDFuse/)
-> **Paper gốc**: Zhao et al., "CDDFuse: Correlation-Driven Dual-branch Feature Decomposition for Multi-Modality Image Fusion", CVPR 2023
+> **Paper gốc**: Zhao et al., "CDDFuse: Correlation-Driven Dual-Branch Feature Decomposition for Multi-Modality Image Fusion", **CVPR 2023** ([Paper PDF](../Paper/Zhao_CDDFuse_Correlation-Driven_Dual-Branch_Feature_Decomposition_for_Multi-Modality_Image_Fusion_CVPR_2023_paper.pdf) · [arXiv 2211.14461](https://arxiv.org/abs/2211.14461) · [GitHub](https://github.com/Zhaozixiang1228/MMIF-CDDFuse))
+>
+> **Cấu trúc**: §1-11 = phân tích từ source code + tổng hợp. **§12 = chi tiết chính xác từ paper gốc** (đối chiếu, hiệu chỉnh các mô tả ở §1-11). §13 = tổng kết.
 
 ---
 
@@ -559,7 +561,282 @@ Combine 3 hướng:
 
 ---
 
-## 12. Tổng kết
+## 12. Phụ lục — Chi tiết chuẩn từ paper gốc (CVPR 2023)
+
+> **Quan trọng**: Phần 1-11 ở trên là phân tích từ source code và tổng hợp tôi tự viết. Phần 12 này được trích & đối chiếu trực tiếp từ paper gốc Zhao et al., CVPR 2023 (đã có ở [Paper/](../Paper/)). Có vài chi tiết tôi mô tả ở §3 chưa hoàn toàn đúng — mục này hiệu chỉnh.
+
+### 12.1 Đóng góp chính (4 contributions từ paper, §1)
+
+Trích nguyên văn:
+
+1. **Dual-branch Transformer-CNN framework** for extracting and fusing global and local features → reflects modality-specific & shared features tốt hơn.
+2. **Refine CNN and Transformer blocks** for MMIF: là **first** dùng:
+   - **INN blocks** cho lossless information transmission
+   - **LT blocks** cho trading-off fusion quality vs computational cost
+3. **Correlation-driven decomposition loss** để enforce modality shared/specific decomposition.
+4. **SOTA performance** trên IVF + MIF + downstream MM detection/segmentation.
+
+### 12.2 Kiến trúc CHÍNH XÁC (paper Figure 2)
+
+Tôi đã mô tả chưa chuẩn ở §3. Kiến trúc thực tế **3 thành phần encoder** (không phải 2):
+
+```
+                          ┌─────────────────────────────┐
+                          │   Encoder (3 components)    │
+                          │                             │
+  Input I ─►              │  ┌──────────────────────┐   │
+  (infrared/CT/PET)       │  │ Share Feature Encoder│   │
+                          │  │   SFE = S(·)         │   │  ← 4 Restormer blocks
+                          │  │   [Restormer-based]  │   │
+                          │  └──────────┬───────────┘   │
+                          │             │ shallow φ^S    │
+                          │             ├──────────────┐ │
+                          │             ▼              ▼ │
+                          │  ┌──────────────────┐  ┌──────────────┐ │
+                          │  │ Base Transformer │  │ Detail CNN   │ │
+                          │  │ Encoder (BTE)    │  │ Encoder (DCE)│ │
+                          │  │ B(·) [LT blocks] │  │ D(·) [INN]   │ │
+                          │  └──────────────────┘  └──────────────┘ │
+                          │       │ φ^B = base       │ φ^D = detail │
+                          └───────┼──────────────────┼──────────────┘
+                                  │                  │
+                          (BTE + DCE = "Long-short Range Encoder")
+```
+
+**3 encoder modules**:
+
+| Module | Ký hiệu | Backbone | Vai trò |
+|---|---|---|---|
+| **SFE** (Share Feature Encoder) | S(·) | **Restormer blocks ×4**, dim=64, 8 heads | Trích shallow features từ ảnh đầu vào — global shallow representation |
+| **BTE** (Base Transformer Encoder) | B(·) | **Lite Transformer (LT) blocks**, dim=64, 8 heads | Trích **low-frequency BASE** (long-range, modality-shared) |
+| **DCE** (Detail CNN Encoder) | D(·) | **INN blocks** với BRB (bottleneck residual block) làm sub-mapping | Trích **high-frequency DETAIL** (local, modality-specific, lossless) |
+
+→ **BTE + DCE** được gọi là **Long-short Range Encoder** (long-range qua transformer, short-range qua CNN/INN).
+
+⚠️ **Khác biệt với mô tả ở §3 của tôi**:
+- Tôi gọi nhầm `BaseFeatureExtraction` (1 transformer block) là core của BTE. Thực tế paper dùng **LT blocks**, không phải Restormer Transformer Block như tôi mô tả.
+- Tôi mô tả encoder shared 4 transformer block + 2 nhánh nối tiếp. Thực tế là **3 encoder song song-tuần tự** (SFE → BTE & DCE).
+- File [net.py](../models/MMIF-CDDFuse/net.py) trong code có module `BaseFeatureExtraction` mà cấu trúc nhìn giống transformer block thông thường — đây thực ra là **simplified LT block** trong implementation, paper mô tả đầy đủ hơn.
+
+### 12.3 LT (Lite Transformer) block — chi tiết
+
+LT do Wu et al. (ICLR 2020) đề xuất:
+- **Long-Short Range Attention (LSRA)** chia head thành 2 nhóm:
+  - Một nửa: standard self-attention (global)
+  - Một nửa: depthwise convolution (local)
+- **Flattened Feed-Forward Network (FFN)**: làm phẳng bottleneck → giảm tham số nhưng vẫn duy trì performance
+
+**Lý do paper chọn LT thay vì Restormer cho BTE**: cân bằng quality vs compute. Restormer mạnh nhưng nặng → SFE+Decoder (cần expressive power) dùng Restormer; BTE chỉ cần extract base features → LT nhẹ hơn.
+
+### 12.4 INN block — chi tiết (paper §3.2)
+
+Mỗi INN có K invertible layers. Trong layer thứ k (k = 1, ..., K):
+
+```
+φ^S_{I,k+1}[c+1:C] = φ^S_{I,k}[c+1:C] + I₁(φ^S_{I,k}[1:c])
+
+φ^S_{I,k+1}[1:c]   = φ^S_{I,k}[1:c] ⊙ exp(I₂(φ^S_{I,k+1}[c+1:C]))
+                                          + I₃(φ^S_{I,k+1}[c+1:C])
+
+φ^S_{I,k+1} = CAT{φ^S_{I,k+1}[1:c], φ^S_{I,k+1}[c+1:C]}
+```
+
+trong đó:
+- ⊙ = Hadamard product
+- φ^S_{I,k}[1:c] = c kênh đầu của input layer thứ k
+- CAT = channel concatenation
+- I_1, I_2, I_3 = arbitrary mapping functions → paper dùng **BRB (Bottleneck Residual Block)** từ MobileNetV2
+
+**Tại sao chọn INN cho detail?**
+- INN có **invertibility by design** → ngăn information loss qua propagation
+- "Aligns with our goal of preserving high-frequency features in the fused images" (paper §1)
+
+### 12.5 Loss functions — công thức CHÍNH XÁC từ paper
+
+#### Stage I (epochs 0 → 39):
+
+```
+L_total^I = L_ir + α₁·L_vis + α₂·L_decomp                  (Eq.7)
+```
+
+Reconstruction loss cho từng modality:
+```
+L_ir = L_int^I(I, Î) + μ·L_SSIM(I, Î)                       (Eq.8)
+L_int^I = ||I - Î||₂²
+L_SSIM = 1 - SSIM(·)
+```
+
+(L_vis tương tự với V và V̂.)
+
+Decomposition loss:
+```
+L_decomp = (CC_D)² / (CC_B + ε)                             (Eq.9)
+        = [CC(φ^D_I, φ^D_V)]² / [CC(φ^B_I, φ^B_V) + ε]
+```
+
+với ε = 1.01, CC = Pearson correlation.
+
+**Logic** (paper §3.5):
+- Numerator (CC_D)² → 0: detail features của I và V uncorrelated (modality-specific)
+- Denominator CC_B → tăng: base features highly correlated (modality-shared)
+- Empirically, CC_D → 0 và CC_B → lớn dần qua training
+
+#### Stage II (epochs 40 → 119):
+
+```
+L_total^II = L_int^II + α₃·L_grad + α₄·L_decomp             (Eq.10)
+```
+
+Intensity loss với **max-rule selection**:
+```
+L_int^II = (1/HW) · ||I_f - max(I_ir, I_vis)||₁
+```
+
+Gradient loss với Sobel operator ∇:
+```
+L_grad = (1/HW) · ||∇I_f - max(|∇I_ir|, |∇I_vis|)||₁
+```
+
+→ **Bias output về modality có pixel/gradient mạnh hơn** ở mỗi vị trí.
+
+### 12.6 Hyperparameters CHÍNH XÁC từ paper §4.1
+
+| Param | Paper value | Note |
+|---|---|---|
+| GPUs | **2× NVIDIA RTX 3090** | (đáng kể: paper dùng 2 GPU, không phải 1) |
+| Batch size | **16** | (train.py local có thể là 8 — config khác) |
+| Epoch total | 120 (40 + 80) | Stage I: 40, Stage II: 80 |
+| Crop size | 128×128 | random crop |
+| Optimizer | Adam | LR=1e-4, decay 0.5× mỗi 20 epochs |
+| **α₁, α₂** (Stage I weights) | **2, 2** | reconstruction + decomp |
+| **α₃, α₄** (Stage II weights) | **10, 2** | grad + decomp |
+| μ (SSIM weight in Stage I) | (paper không nói rõ; train.py = 5) | |
+| Restormer blocks trong SFE | **4 blocks** | dim=64, 8 attention heads |
+| LT block trong BTE | dim=64, **8 attention heads** | |
+| Decoder | Same config as encoder (Restormer) | |
+
+### 12.7 Datasets
+
+#### IVF (Infrared-Visible Fusion):
+- **Train**: MSRS (1083 pairs)
+- **Validation**: RoadScene (50 pairs)
+- **Test**: MSRS (361 pairs), RoadScene (50 pairs), TNO (25 pairs)
+- Note: **không** fine-tune trên RoadScene/TNO → test generalization
+
+#### MIF (Medical Image Fusion):
+- Source: **286 pairs** từ Harvard Medical website
+- Split: 130 train / 20 val
+- **Test**:
+  - 21 pairs MRI-CT
+  - 42 pairs MRI-PET
+  - 73 pairs MRI-SPECT
+
+→ **2 setup được test**:
+1. **CDDFuse** (no fine-tune): chỉ train trên IVF, test trên MIF → đo *generalization*
+2. **CDDFuse\*** (fine-tune): train từ đầu trên MIF dataset → đo *upper bound*
+
+### 12.8 Ablation Study từ paper (Table 2, MSRS test set)
+
+Paper kết luận **mọi component đều quan trọng**. Kết quả:
+
+| Configuration | EN ↑ | SD ↑ | VIF ↑ | SSIM ↑ |
+|---|---|---|---|---|
+| **CDDFuse (Ours)** | **6.70** | **43.38** | **1.05** | **1.00** |
+| I — Division → Subtraction trong L_decomp (`(L_CC^D)² - L_CC^B`) | 6.55 | 42.20 | 0.98 | 1.00 |
+| II — w/o L_decomp | 6.19 | 36.49 | 0.96 | 0.97 |
+| III — LT → INN trong BTE | 6.47 | 41.39 | 1.00 | 0.97 |
+| IV — INN → LT trong DCE | 6.56 | 42.18 | 1.00 | 0.99 |
+| V — INN → CNN (BRB) trong DCE | 6.54 | 42.10 | 0.98 | 0.98 |
+| VI — w/o two-stage training | 6.28 | 38.42 | 0.97 | 0.99 |
+
+**Insight quan trọng từ ablation**:
+
+| Component | Tác động khi remove | Insight |
+|---|---|---|
+| **L_decomp** | EN giảm 7.6%, SSIM giảm 3% | **Critical**. Decomposition loss thực sự enforce shared/specific separation |
+| **Two-stage training** | EN giảm 6.3% | Cần thiết — không thể train end-to-end one-shot |
+| **INN trong DCE** | EN giảm 2.1%, SSIM giảm 1% | INN preserve detail tốt hơn LT/CNN |
+| **LT trong BTE** | EN giảm 3.4%, SSIM giảm 3% | LT phù hợp hơn INN cho base feature |
+| **L_decomp formulation** | Division (`(CC_D)²/(CC_B+ε)`) > Subtraction (`(CC_D)² - CC_B`) | Form division gây áp lực mạnh hơn để CC_B tăng và CC_D giảm |
+
+→ **Ý nghĩa cho cải tiến**: nếu thay LT/INN → có thể bị penalty. Nếu thay L_decomp → cần verify carefully (không phải mọi formulation đều work).
+
+### 12.9 Performance trên Medical Image Fusion (Table 5 paper)
+
+| Dataset | Method | EN | SD | SF | MI | SCD | VIF | Q^AB/F | SSIM |
+|---|---|---|---|---|---|---|---|---|---|
+| **MRI-CT** | TarD | 4.75 | 61.14 | 28.38 | 1.94 | 0.81 | 0.32 | 0.35 | 0.61 |
+| | RFN | 5.30 | 52.95 | 33.42 | 1.98 | 0.58 | 0.33 | 0.52 | 0.49 |
+| | DeF | 4.63 | 66.38 | 21.56 | **2.20** | 1.12 | 0.47 | 0.44 | 1.29 |
+| | ReC | 4.41 | 66.96 | 20.16 | 2.03 | 1.24 | 0.40 | 0.42 | 1.29 |
+| | **CDDFuse** | **4.83** | **88.59** | **33.83** | 2.24 | 1.74 | **0.50** | 0.59 | 1.31 |
+| | U2F | 4.88 | 52.98 | 22.54 | 2.08 | 0.75 | 0.37 | 0.46 | 0.49 |
+| | SDN | 5.02 | 60.07 | 29.41 | 2.14 | 0.97 | 0.38 | 0.47 | 0.51 |
+| | EMF | 4.76 | 72.76 | 22.56 | 2.34 | 1.32 | 0.56 | 0.49 | 1.31 |
+| | **CDDFuse\*** | 4.88 | 79.17 | 38.14 | 2.61 | 1.41 | 0.61 | 0.68 | **1.34** |
+| **MRI-PET** | **CDDFuse** | 4.24 | 81.72 | 28.04 | 1.87 | 1.82 | 0.66 | 0.65 | 1.46 |
+| | **CDDFuse\*** | 4.23 | 70.73 | 29.5 | 2.03 | 1.69 | 0.71 | 0.71 | **1.49** |
+| **MRI-SPECT** | **CDDFuse** | 3.91 | 71.82 | 20.68 | 1.89 | 1.92 | 0.66 | 0.69 | 1.44 |
+| | **CDDFuse\*** | 3.90 | 58.31 | 20.87 | 2.49 | 1.35 | 0.97 | 0.78 | **1.48** |
+
+**Key takeaways**:
+- CDDFuse no fine-tune đã top-2/3 ở mọi dataset → **strong generalization**
+- CDDFuse* (fine-tune trên MIF) chỉ tăng SSIM 0.03 → **head-room cho fine-tune nhỏ**
+- → Architecture đã sát ceiling; cải tiến phải đến từ **change architecture/loss**, không phải đơn thuần fine-tune
+
+### 12.10 Hiệu chỉnh & lưu ý cho cải tiến
+
+Sau khi đọc paper, tôi điều chỉnh các đề xuất ở §8:
+
+| Đề xuất ở §8 | Hiệu chỉnh |
+|---|---|
+| **A1 — Hybrid Mamba-Transformer** | Phải biết: paper đã chứng minh **LT > INN cho BTE** và **INN > LT/CNN cho DCE** (ablation Table 2). Nếu thay Mamba, phải compare against LT (cho BTE) và INN (cho DCE) riêng → ablation sẽ phức tạp hơn |
+| **A2 — 3-band decomposition** | Decomposition hiện tại được drive bởi L_decomp. Nếu thêm band thứ 3, cần extend L_decomp → cẩn thận với formulation (paper đã thử subtraction vs division, division thắng) |
+| **A3 — Cross-modal encoder** | Paper dùng **shared SFE** với lý do "Restormer self-attention across feature dim → cross-modality shallow features without computation overhead". Thay shared bằng 2 encoder riêng có thể mất lợi thế này |
+| **B1 — Anatomical loss** | Paper dùng **max-rule** cho L_int^II và L_grad — tức là tin tưởng pixel mạnh hơn ở mỗi vị trí. Anatomical loss có thể conflict với max-rule → cần re-balance |
+| **D1 — Color processing** | Paper Figure 6 cho thấy CDDFuse* trên MRI-PET đã preserve color tốt → có thể không phải gap lớn nhất |
+
+### 12.11 Hướng cải tiến mới sau khi đọc paper
+
+Sau khi đọc kỹ paper + ablation, các hướng có novelty cao hơn các đề xuất ban đầu:
+
+#### Hướng N1 — Better Decomposition Loss
+
+Paper cho thấy decomposition loss form ảnh hưởng lớn (Exp I trong ablation). Có thể propose:
+- **Mutual Information-based** thay correlation: minimize MI(detail_A, detail_B), maximize MI(base_A, base_B)
+- **Wasserstein distance-based** decomposition
+- **Information bottleneck** principle
+
+→ Tránh trùng với "vanilla Mamba/Transformer swap".
+
+#### Hướng N2 — Multi-stage > 2-stage
+
+Paper dùng 2-stage. Có thể đề xuất:
+- Stage 1: AE training
+- Stage 2: Decomposition refinement (only L_decomp)
+- Stage 3: Fusion training
+
+→ Chia nhỏ training để mỗi stage focus 1 mục tiêu.
+
+#### Hướng N3 — Replace `max` rule với learnable selector
+
+Paper dùng `max(I_ir, I_vis)` và `max(|∇I_ir|, |∇I_vis|)` làm target — đây là **hard rule**. Đề xuất:
+- Learnable per-pixel weighting: w(I_ir, I_vis) thay max
+- Spatial attention map drives selection
+
+→ **Concrete contribution**, không bị overlap với existing Mamba paper.
+
+#### Hướng N4 — Test-time MIF specialization (no retrain)
+
+CDDFuse* (fine-tune) chỉ tăng SSIM từ 1.31 → 1.34 (MRI-CT). Có thể:
+- Test-time prompt tuning với 1 vài LoRA layer
+- Modality embedding injection ở inference time
+
+→ Dùng practical motivation: clinical deployment cần adapt scanner mới mà không retrain toàn model.
+
+---
+
+## 13. Tổng kết
 
 CDDFuse là baseline **rất tốt để extend** vì:
 - ✅ Architecture modular, dễ swap component

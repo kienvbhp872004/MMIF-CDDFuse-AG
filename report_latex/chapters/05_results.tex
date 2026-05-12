@@ -1,0 +1,88 @@
+\section{Cấu hình thí nghiệm}
+\label{sec:setup}
+
+% TODO: Hardware (Kaggle P100, RTX 3050 local), Python 3.8 venv, torch 2.5.1+cu121, ...
+
+\section{Kết quả light retrain}
+\label{sec:results-light}
+
+\subsection{Module A — 4 alternatives}
+% TODO: Bảng so sánh A.1 Sum / A.2 Gated / A.3 CrossAttn / A.4 ChannelMoE
+% Reference: results_v2/PROGRESS.md Module A section
+
+\begin{table}[h]
+\centering
+\caption{Module A — Cliff's $\delta$ vs CDDFuse baseline (light retrain).}
+\label{tab:moduleA}
+\begin{tabular}{lcccc}
+\toprule
+Metric & Sum & Gated & CrossAttn & ChannelMoE \\
+\midrule
+NABF $\uparrow$ & 0 & +0.596 (L) & +0.529 (L) & +0.504 (L) \\
+QSF             & 0 & +0.602 (L) & +0.542 (L) & +0.488 (L) \\
+QM (regression) & 0 & -0.602 (L) & -0.637 (L) & -0.745 (L) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% TODO: Discuss winner A.2 Gated + insight về capacity vs trade-off severity
+
+\subsection{Module B — 4 alternatives}
+\label{ssec:moduleB-results}
+% TODO: Bảng so sánh B.1-B.4
+
+\begin{table}[h]
+\centering
+\caption{Module B — Cliff's $\delta$ vs CDDFuse baseline (light retrain).}
+\label{tab:moduleB}
+\begin{tabular}{lcccc}
+\toprule
+Metric & Max & Mean & Saliency & Learnable \\
+\midrule
+NABF $\uparrow$ & 0 & +0.669 (L) & +0.671 (L) & +0.671 (L) \\
+QSF             & 0 & +0.591 (L) & +0.568 (L) & +0.543 (L) \\
+QMI             & 0 & ns         & +0.047 SIG & +0.074 SIG \\
+QM (regression) & 0 & -0.735 (L) & -0.732 (L) & -0.731 (L) \\
+Pooled SIG      & 0 & 4/25       & \textbf{6/25} & 5/25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Combined model (light)}
+% TODO: Combined-Gated-Saliency light retrain results
+
+\section{Kết quả paper-faithful (huấn luyện đầy đủ)}
+\label{sec:results-paper}
+
+\subsection{Tái thực hiện baseline}
+\label{ssec:paper-baseline}
+% TODO: CDDFuse-Paper-MIF vs CDDFuse_MIF.pth (pretrained gốc) — confirm pipeline OK
+% Reference: results_v2/_stats/20260512_142953_Paper-MIF_vs_CDDFuse/REPORT.md
+
+\subsection{Combined-Gated-Saliency paper-faithful}
+\label{ssec:combined-paper}
+% TODO: Combined-Paper-MIF vs CDDFuse-Paper-MIF
+% Reference: results_v2/_stats/20260512_215701_Combined-Paper-MIF_vs_CDDFuse/REPORT.md
+
+\begin{table}[h]
+\centering
+\caption{So sánh light retrain vs paper-faithful: Combined-Gated-Saliency.}
+\label{tab:combined-comparison}
+\begin{tabular}{lcc}
+\toprule
+Metric & Light retrain ($\delta$) & Paper-faithful ($\delta$) \\
+\midrule
+NABF & +0.659 (L) & +0.174 (small) \\
+QM   & -0.587 (L) & -0.118 (trivial) \\
+QSF  & +0.679 (L) & +0.218 (small) \\
+Pooled SIG & 4/25 & 2/25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% TODO: Phân tích sâu — trade-off biến mất khi train đầy đủ
+
+\section{So sánh modal-specific}
+\label{sec:modal-specific}
+
+% TODO: Per-modal CT 10 + PET 10 SIG (cao nhất) cho Combined-Paper, SPECT 2

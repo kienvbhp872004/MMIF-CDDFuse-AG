@@ -12,7 +12,7 @@ results/
 *.pt
 *.ckpt
 *.h5
-
+.venv38
 # Per-model heavy assets we don't need on GitHub
 models/**/test_img/
 models/**/image/

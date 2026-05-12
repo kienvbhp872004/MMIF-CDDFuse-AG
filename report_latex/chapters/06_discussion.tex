@@ -1,0 +1,49 @@
+\section{Light retrain results KHÔNG generalize lên paper-faithful}
+\label{sec:disc-key}
+
+Phát hiện quan trọng nhất của đồ án: trade-off NABF$\uparrow$/QM$\downarrow$ mà 9 light retrain variants chỉ ra (Cliff's $\delta$ LARGE ở cả hai chiều) \emph{biến mất gần như hoàn toàn} khi mô hình được huấn luyện đầy đủ theo paper. Cụ thể với Combined-Gated-Saliency:
+\begin{itemize}
+    \item Light retrain: NABF $\delta=+0.659$, QM $\delta=-0.587$ (cả hai LARGE)
+    \item Paper-faithful: NABF $\delta=+0.174$, QM $\delta=-0.118$ (cả hai trivial/small)
+\end{itemize}
+
+Hai chiều của trade-off đều giảm $3\text{--}5\times$ magnitude.
+
+\paragraph{Giải thích.}
+Khi đóng băng encoder/decoder trong light retrain, các features đầu vào của fusion layer không co-adapt với variant module. Variant module phải dùng features được tối ưu cho \emph{paper baseline} (sum + max-rule) thay vì features tối ưu cho chính nó. Khi cho phép encoder/decoder train cùng (Phase II của paper), chúng adapt sang features phù hợp với variant module \emph{và baseline} đều, kéo output về gần baseline.
+
+\paragraph{Implications.}
+\begin{enumerate}
+    \item Light retrain phù hợp cho \emph{rapid screening} (nhanh $\sim 50\times$) nhưng kết quả không phải estimate đáng tin cho full training.
+    \item Các nghiên cứu future về ablation cần cẩn trọng: confirm winners với full training trước khi claim.
+    \item Trade-off magnitude trong light retrain phản ánh \emph{độ aggressive của smoothing} chứ không phải \emph{bản chất của fusion bottleneck}.
+\end{enumerate}
+
+\section{Modal-specific gains của Combined-Paper}
+\label{sec:disc-modal}
+
+Mặc dù pooled SIG chỉ 2/25, Combined-Paper-MIF đạt:
+\begin{itemize}
+    \item CT: 10/25 SIG sau Holm (cao nhất tất cả run)
+    \item PET: 10/25 SIG sau Holm (cao nhất tất cả run)
+    \item SPECT: 2/25 SIG (yếu)
+\end{itemize}
+
+Đề xuất giải thích:
+% TODO: Tại sao SPECT yếu? — baseline NABF cao, RGB-to-Y conversion, variance cao, etc.
+
+\section{So sánh với SOTA và paper baseline}
+\label{sec:disc-sota}
+
+% TODO: Dùng results_v2/zscore_ranking.csv để chỉ ra Combined-Paper đứng đâu
+
+\section{Hạn chế}
+\label{sec:limitations}
+
+\begin{enumerate}
+    \item \textbf{Train data split không hoàn toàn paper-faithful}: paper không công bố cụ thể 286 cặp nào trong 810 cặp Harvard được dùng. Chúng tôi sample bằng seed 42 → khác paper composition $\to$ baseline reproduction lệch $\sim 10\text{--}20\%$.
+    \item \textbf{Test set khác paper}: paper test 21 CT + 42 PET + 73 SPECT, chúng tôi dùng 24$\times$3 từ \texttt{data/reference/} để tương thích với 9 light retrain variants.
+    \item \textbf{Batch 8 vs paper 16}: do RAM GPU P100 + AMP fp16 hạn chế. Convergence có thể chậm hơn.
+    \item \textbf{Module C (decomp loss) chưa thử}: paper note $L_{\mathrm{decomp}}$ là critical, nhưng đồ án không khảo sát reformulation.
+    \item \textbf{Single seed (42)}: không đánh giá variance giữa các seed → cần $\geq 3$ seeds cho claim mạnh hơn.
+\end{enumerate}

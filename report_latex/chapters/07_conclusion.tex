@@ -1,0 +1,36 @@
+\section{Tổng kết}
+\label{sec:summary}
+
+Đồ án nghiên cứu cải tiến CDDFuse cho bài toán tổng hợp ảnh đa phương thức y tế qua quy trình ablation hai giai đoạn:
+\begin{enumerate}
+    \item Light retrain (10--25 epoch, freeze encoder/decoder) cho 4 alternatives Module~A và 4 alternatives Module~B → identify winners (Gated + Saliency).
+    \item Paper-faithful training (120 ep, 2-phase, P100 GPU + AMP fp16) cho baseline reproduction và Combined-Gated-Saliency.
+\end{enumerate}
+
+\section{Kết luận chính}
+\label{sec:conclusion-main}
+
+\begin{itemize}
+    \item Combined-Gated-Saliency đạt 10 SIG trên CT và 10 SIG trên PET (per-modal Holm) trong huấn luyện đầy đủ, gợi ý hướng cải tiến \emph{theo modality cụ thể}.
+    \item Tuy nhiên, gain pooled toàn 3 modality chỉ 2/25 SIG → không thể claim "Combined cải thiện CDDFuse" theo nghĩa tổng quát.
+    \item Trade-off NABF$\uparrow$/QM$\downarrow$ trong light retrain là \emph{artifact} của under-train + freeze encoder/decoder, không phải bottleneck của kiến trúc fusion.
+\end{itemize}
+
+\section{Hướng phát triển}
+\label{sec:future}
+
+\subsection{Ngắn hạn}
+\begin{enumerate}
+    \item Train cá nhân A.2 Gated và B.3 Saliency với paper procedure để hoàn thiện ablation table (Combined vs A only vs B only).
+    \item Tune learning rate riêng cho gated module (e.g. $\times 10$) vì init zeros cần update nhanh hơn.
+    \item Thử $\alpha_3 = 10$ (paper text) thay $5$ (code release).
+    \item Combined-Gated-Learnable (B.4 thay B.3) — B.4 thắng per-modal trong light retrain.
+\end{enumerate}
+
+\subsection{Dài hạn}
+\begin{enumerate}
+    \item \textbf{Module C}: reformulate decomposition loss (Eq.~9 paper). Untested area, có thể là chỗ phá trade-off thực sự.
+    \item Multi-seed evaluation ($\geq 3$ seeds) cho variance estimate.
+    \item Frequency-domain loss (FreqLoss) để target QM/wavelet metric trực tiếp.
+    \item Tune cho specific clinical use case (CT diagnosis, PET functional viz).
+\end{enumerate}

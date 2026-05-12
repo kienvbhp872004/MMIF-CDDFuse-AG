@@ -1,0 +1,57 @@
+\section{Tổng hợp ảnh đa phương thức}
+\label{sec:mif}
+
+% TODO:
+% - Định nghĩa MIF
+% - Phân loại: IVF (infrared-visible) vs MIF (medical)
+% - Các modality y tế: CT, MRI, PET, SPECT - tính chất từng cái
+
+\section{Phương pháp CDDFuse}
+\label{sec:cddfuse}
+
+\subsection{Kiến trúc tổng quan}
+% TODO: Mô tả 4 thành phần: Restormer Encoder, BaseFeatureExtraction (Transformer),
+% DetailFeatureExtraction (INN), Restormer Decoder
+% Insert figure: figures/cddfuse_architecture.png
+
+\subsection{Hàm mất mát}
+\label{ssec:loss}
+
+Hàm mất mát của CDDFuse có hai pha:
+
+\paragraph{Pha I (epoch 0--39):} Học decomposition cho Encoder + Decoder:
+\begin{equation}
+L_I = \alpha_1 L_{\mathrm{recon}}^{V} + \alpha_1 L_{\mathrm{recon}}^{I} + \alpha_2 L_{\mathrm{decomp}} + \alpha_3 L_{\mathrm{TV}}
+\end{equation}
+trong đó:
+\begin{align}
+L_{\mathrm{recon}}^{X} &= 5\cdot L_{\mathrm{SSIM}}(X, \hat{X}) + L_{\mathrm{MSE}}(X, \hat{X}), \\
+L_{\mathrm{decomp}} &= \frac{(\mathrm{CC}_D)^2}{1.01 + \mathrm{CC}_B}.
+\end{align}
+
+\paragraph{Pha II (epoch 40--119):} Huấn luyện tất cả với fusion loss:
+\begin{equation}
+L_{II} = L_{\mathrm{fusion}} + \alpha_4 L_{\mathrm{decomp}},
+\end{equation}
+trong đó $L_{\mathrm{fusion}}$ bao gồm intensity loss $L_{\mathrm{int}}^{II}$ và gradient loss $L_{\mathrm{grad}}^{II}$.
+
+\subsection{Quy tắc fusion ở Pha II}
+% TODO: Mô tả paper code dùng BaseFuseLayer(f_I + f_V) — sum trước rồi transform
+
+\section{Các phương pháp so sánh (SOTA)}
+\label{sec:sota}
+
+% TODO: Liệt kê các phương pháp đã chạy trong results_v2/ (U2Fusion, MMIF-DDFM, ...)
+% Bảng tổng hợp + composite z-score nếu có
+
+\section{Đánh giá thống kê}
+\label{sec:stats-bg}
+
+\subsection{Wilcoxon signed-rank}
+% TODO: Định nghĩa Wilcoxon paired, alternative='greater', alpha=0.05
+
+\subsection{Cliff's delta}
+% TODO: Định nghĩa effect size + ngưỡng (trivial/small/medium/large)
+
+\subsection{Holm-Bonferroni correction}
+% TODO: Giải thích multiple-testing correction, K=22 metrics

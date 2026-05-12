@@ -1,0 +1,32 @@
+\section{Đặt vấn đề}
+\label{sec:problem}
+
+% TODO: Giới thiệu bài toán tổng hợp ảnh đa phương thức y tế (MIF):
+% - Tại sao cần (CT/MRI/PET/SPECT thông tin bổ sung)
+% - Ứng dụng lâm sàng
+% - Thách thức (modality khác nhau, contrast, anatomy vs function)
+
+\section{Mục tiêu nghiên cứu}
+\label{sec:goal}
+
+% TODO: 3-5 gạch đầu dòng:
+% - Tìm hiểu CDDFuse và identify điểm yếu
+% - Đề xuất ≥3 phương án thay thế per module để đảm bảo objective comparison
+% - Statistical analysis với Wilcoxon + Holm correction
+% - Reproduce paper baseline và compare
+
+\section{Đóng góp của đồ án}
+\label{sec:contributions}
+
+Đồ án có các đóng góp chính sau:
+\begin{enumerate}
+    \item Khung \emph{light retrain ablation} nhanh (10--25 epoch, $\sim 50\times$ nhanh hơn huấn luyện đầy đủ) cho phép khảo sát 4 phương án Module~A và 4 phương án Module~B.
+    \item Khẳng định lại \emph{(tái thực hiện)} baseline CDDFuse-MIF trên 130 cặp Harvard medical, đạt sai số $\sim 10\text{--}20\%$ so với pretrained công bố.
+    \item Phát hiện thực nghiệm: trade-off NABF$\uparrow$/QM$\downarrow$ trong light retrain \emph{không generalize} sang huấn luyện đầy đủ --- đây là cảnh báo methodology cho các nghiên cứu future về fast ablation.
+    \item Mô hình \texttt{Combined-Gated-Saliency} đạt 10 chỉ số có ý nghĩa trên modality CT và PET (per-modal Holm), đề xuất hướng tune theo modality cụ thể.
+\end{enumerate}
+
+\section{Bố cục đồ án}
+\label{sec:outline}
+
+% TODO: Mô tả ngắn nội dung từng chương

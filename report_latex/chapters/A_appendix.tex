@@ -1,0 +1,70 @@
+\section{Chi tiết training history}
+\label{app:training}
+
+% TODO: Insert loss curves từ results_v2/CDDFuse-Combined-Paper-MIF/train_history.json
+% Figure: figures/train_history_combined.png
+
+\section{Bảng đầy đủ 25 metrics cho từng variant}
+\label{app:metrics-full}
+
+% TODO: Reference results_v2/_stats/*/significance_*.csv
+
+\section{Cấu hình huấn luyện chi tiết}
+\label{app:hyperparams}
+
+\begin{table}[h]
+\centering
+\caption{Hyperparameters paper-faithful training.}
+\begin{tabular}{ll}
+\toprule
+Hyperparameter & Value \\
+\midrule
+Epochs total          & 120 \\
+Epoch gap (Phase I)   & 40 \\
+Batch size            & 8 \\
+Optimizer             & Adam (4 separate, $\beta_1=0.9, \beta_2=0.999$) \\
+Learning rate         & $10^{-4}$ \\
+LR scheduler          & StepLR $\gamma=0.5$ every 20 ep \\
+Clip grad norm        & 0.01 \\
+Mixed precision       & fp16 (autocast + GradScaler) \\
+$\alpha_1$ (MSE)      & 1.0 \\
+$\alpha_2$ (decomp)   & 2.0 \\
+$\alpha_3$ (TV)       & 5.0 (code release; paper text 10) \\
+$\alpha_4$ (decomp II)& 2.0 \\
+Patch size            & 128$\times$128 \\
+Stride                & 64 \\
+Seed                  & 42 \\
+Hardware              & Tesla P100-PCIE-16GB (Kaggle) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Reproduce instructions}
+\label{app:reproduce}
+
+\begin{verbatim}
+# 1. Clone repo
+git clone https://github.com/kienvbhp872004/Image-Fusion
+cd Image-Fusion
+
+# 2. Setup Python 3.8 venv
+py -3.8 -m venv .venv38
+.\.venv38\Scripts\Activate.ps1
+
+# 3. Install deps
+pip install -r models/MMIF-CDDFuse/requirements.txt
+pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# 4. Preprocess
+cd models/MMIF-CDDFuse
+python dataprocessing_MIF.py
+
+# 5. Train
+python train_MIF.py --variant Combined-Gated-Saliency --amp
+
+# 6. Evaluate
+python evaluate_cddfuse.py --variant Combined-Gated-Saliency \
+    --modal CT --ckpt models/CDDFuse-Combined-Gated-Saliency_MIF_*.pth \
+    --harvard_root ../../data/reference --save_perimage
+\end{verbatim}

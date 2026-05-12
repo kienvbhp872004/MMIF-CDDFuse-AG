@@ -1,0 +1,66 @@
+\section{Phân tích điểm yếu của CDDFuse}
+\label{sec:analysis}
+
+% TODO: Dựa trên results_v2/zscore_ranking + composite z analysis
+% - NABF gap 1.73σ → Module A target
+% - QM regression khi soft fusion → Module B context
+
+\section{Module A — Cải tiến Fusion Rule}
+\label{sec:moduleA}
+
+Paper code dùng:
+\begin{equation}
+F_B = \mathrm{BaseFuseLayer}(f_I^B + f_V^B), \quad F_D = \mathrm{DetailFuseLayer}(f_I^D + f_V^D)
+\end{equation}
+
+Phép cộng đơn giản $f_I + f_V$ là điểm có thể tinh chỉnh. Chúng tôi đề xuất 3 alternatives:
+
+\subsection{A.2 — GatedFuseLayer}
+\begin{equation}
+g = \sigma(W_g[f_I, f_V] + b_g), \quad F = g \odot f_V + (1-g) \odot f_I
+\end{equation}
+Init zero $W_g, b_g \to g = 0.5 \Rightarrow F = 0.5(f_I + f_V)$ (gần sum nhưng có thể học).
+Tham số mới: 16K.
+
+\subsection{A.3 — CrossAttnFuse}
+% TODO: Restormer MDTA-style attention, 4 heads, 37K params
+
+\subsection{A.4 — ChannelMoEFuse}
+% TODO: Per-channel MoE routing 3 experts, 5K params
+
+\section{Module B — Cải tiến Loss Target}
+\label{sec:moduleB}
+
+Paper $L_{\mathrm{int}}^{II}$ dùng:
+\begin{equation}
+L_{\mathrm{int}}^{II} = \|F - \max(I_Y, I_{IR})\|_F^2
+\end{equation}
+
+Max-rule chọn pixel sáng nhất, có thể tạo boundary artifact. Chúng tôi đề xuất 3 alternatives:
+
+\subsection{B.2 — Mean}
+\begin{equation}
+\mathrm{target} = 0.5 \cdot (I_Y + I_{IR})
+\end{equation}
+
+\subsection{B.3 — Saliency-weighted}
+\begin{equation}
+w = \frac{|\nabla I_Y|}{|\nabla I_Y| + |\nabla I_{IR}|}, \quad \mathrm{target} = w \cdot I_Y + (1-w) \cdot I_{IR}
+\end{equation}
+
+\subsection{B.4 — Learnable}
+\begin{equation}
+w = \sigma(\mathrm{CNN}([I_Y, I_{IR}, \nabla I_Y, \nabla I_{IR}])), \quad \mathrm{target} = w \cdot I_Y + (1-w) \cdot I_{IR}
+\end{equation}
+
+\section{Quy trình thí nghiệm}
+\label{sec:procedure}
+
+\subsection{Light retrain (rapid screening)}
+% TODO: 10-25 ep CPU/P100, freeze encoder/decoder, fine-tune fuse layers + variant module
+
+\subsection{Paper-faithful (full training)}
+% TODO: 120 ep, 2-phase, batch 8, AMP fp16, P100 GPU, encoder+decoder co-adapt
+
+\subsection{Đánh giá}
+% TODO: 25 metrics on data/reference/ (24×3 modal), Wilcoxon + Holm

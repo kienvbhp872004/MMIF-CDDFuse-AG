@@ -1,0 +1,13 @@
+\chapter*{Tóm tắt}
+\addcontentsline{toc}{chapter}{Tóm tắt}
+
+Đồ án nghiên cứu cải tiến phương pháp CDDFuse (Zhao et al., CVPR 2023) cho bài toán tổng hợp ảnh đa phương thức y tế (MIF). Trên cơ sở phân tích kiến trúc gốc, chúng tôi đề xuất hai hướng cải tiến: (1) thay phép cộng đơn giản ở bước fusion bằng cơ chế gated soft-fusion (Module~A), và (2) thay quy tắc max-pixel trong hàm mất mát ($L_{\mathrm{int}}^{II}$) bằng các phương án mềm hơn như mean, saliency-weighted và learnable (Module~B).
+
+Để khảo sát nhanh, chúng tôi xây dựng một quy trình \emph{light retrain} (10--25 epoch, đóng băng encoder/decoder, chỉ fine-tune phần fusion) so sánh tám biến thể với baseline. Kết quả ban đầu cho thấy mọi biến thể đều cải thiện NABF (mức tệp giảm artifact) nhưng đồng thời giảm chỉ số QM (wavelet quality), tạo nên một \emph{trade-off} rõ rệt với hiệu ứng lớn (Cliff's $\delta>0.6$). Hướng kết hợp Gated $\times$ Saliency là phương án tốt nhất theo light retrain.
+
+Tuy nhiên, khi tái thực hiện huấn luyện đầy đủ theo paper (120 epoch, hai pha, batch 8, AMP fp16) trên GPU Tesla P100, mô hình kết hợp gần như không thể hiện cải thiện ý nghĩa thống kê so với baseline khi xem xét gộp ba modality. Trade-off ở light retrain bị giảm về mức rất nhỏ (Cliff's $\delta<0.2$), chỉ ra rằng trade-off mà ablation nhanh ghi nhận \emph{thực chất là artifact} của việc huấn luyện không đủ + đóng băng encoder/decoder, không phải bản chất của kiến trúc.
+
+Đóng góp chính của đồ án bao gồm: (i) bộ khung ablation light retrain nhanh gấp $\sim 50\times$ so với huấn luyện đầy đủ, (ii) phát hiện rằng kết quả light retrain không generalize lên huấn luyện đầy đủ trong kiến trúc CDDFuse --- một cảnh báo methodology quan trọng, và (iii) phân tích modal-specific cho thấy mô hình kết hợp đạt 10 chỉ số có ý nghĩa trên modality CT và PET (so với chỉ 2 trên SPECT).
+
+\bigskip
+\noindent\textbf{Từ khóa:} tổng hợp ảnh đa phương thức, CDDFuse, ablation study, image fusion, Wilcoxon, paper-faithful training.
