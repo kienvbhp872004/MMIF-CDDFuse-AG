@@ -156,7 +156,11 @@ def main():
     # Losses
     mse = nn.MSELoss()
     l1 = nn.L1Loss()
-    ssim_loss = kornia.losses.SSIM(11, reduction='mean')
+    # kornia 0.6+ API: SSIMLoss thay SSIM (returns loss = 1 - ssim)
+    if hasattr(kornia.losses, 'SSIMLoss'):
+        ssim_loss = kornia.losses.SSIMLoss(11, reduction='mean')
+    else:
+        ssim_loss = kornia.losses.SSIM(11, reduction='mean')  # fallback kornia 0.2 (paper)
     if pixel_select == "max":
         criteria_fusion = Fusionloss()  # paper default
     else:
