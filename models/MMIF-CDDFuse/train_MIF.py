@@ -43,25 +43,33 @@ from variants.losses import FusionLossB
 from variants.modules import GatedFuseLayer
 
 
-def linear_cka(x, y, eps=1e-8):
+def linear_cka(x, y, eps=1e-6):
     """Linear CKA between feature tensors [N, C, H, W].
 
     CKA = HSIC(X, Y) / sqrt(HSIC(X, X) * HSIC(Y, Y)), giá trị trong [0, 1].
     Captures *nonlinear* statistical dependence (paper's `cc()` chỉ linear).
     Module C variant: thay Pearson CC bằng CKA giữ nguyên decomp loss shape.
+
+    AMP-safe: force fp32 + row-normalize để tránh K_x overflow ở epoch đầu.
     """
-    N = x.shape[0]
-    x = x.reshape(N, -1)
-    y = y.reshape(N, -1)
-    x = x - x.mean(dim=0, keepdim=True)
-    y = y - y.mean(dim=0, keepdim=True)
-    K_x = x @ x.T          # [N, N] Gram matrix
-    K_y = y @ y.T
-    # HSIC dạng centered linear kernel — đã center features ở trên nên trace(K_X K_Y) đủ
-    hsic_xy = (K_x * K_y).sum()
-    hsic_xx = (K_x * K_x).sum()
-    hsic_yy = (K_y * K_y).sum()
-    return hsic_xy / (torch.sqrt(hsic_xx * hsic_yy) + eps)
+    with torch.amp.autocast('cuda', enabled=False):
+        x = x.float()
+        y = y.float()
+        N = x.shape[0]
+        x = x.reshape(N, -1)
+        y = y.reshape(N, -1)
+        # Center along batch dim
+        x = x - x.mean(dim=0, keepdim=True)
+        y = y - y.mean(dim=0, keepdim=True)
+        # Row-normalize → mỗi row có norm 1 → K_x bounded trong [-1, 1]
+        x = x / (x.norm(dim=-1, keepdim=True) + eps)
+        y = y / (y.norm(dim=-1, keepdim=True) + eps)
+        K_x = x @ x.T          # [N, N], values ∈ [-1, 1]
+        K_y = y @ y.T
+        hsic_xy = (K_x * K_y).sum()
+        hsic_xx = (K_x * K_x).sum()
+        hsic_yy = (K_y * K_y).sum()
+        return hsic_xy / (torch.sqrt(hsic_xx * hsic_yy + eps) + eps)
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
