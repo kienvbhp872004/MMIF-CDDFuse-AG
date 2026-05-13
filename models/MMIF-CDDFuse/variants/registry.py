@@ -35,7 +35,8 @@ VARIANT_REGISTRY: Dict[str, Tuple[Callable[[], nn.Module], Callable[[], nn.Modul
 
     # Combined — Module A winner (Gated) × Module B winner (Saliency)
     "Combined-Gated-Saliency":  (lambda: GatedFuseLayer(64),      lambda: GatedFuseLayer(64),      "saliency",  "light_retrain"),
-    "Combined-Gated-Learnable": (lambda: GatedFuseLayer(64),      lambda: GatedFuseLayer(64),      "learnable", "light_retrain"),
+    "Combined-Gated-Learnable":    (lambda: GatedFuseLayer(64),   lambda: GatedFuseLayer(64),   "learnable", "light_retrain"),
+    "Combined-Gated-Saliency-CKA": (lambda: GatedFuseLayer(64),   lambda: GatedFuseLayer(64),   "saliency",  "light_retrain"),  # Module C
 }
 
 

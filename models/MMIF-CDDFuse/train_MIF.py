@@ -42,6 +42,27 @@ from utils.loss import Fusionloss, cc
 from variants.losses import FusionLossB
 from variants.modules import GatedFuseLayer
 
+
+def linear_cka(x, y, eps=1e-8):
+    """Linear CKA between feature tensors [N, C, H, W].
+
+    CKA = HSIC(X, Y) / sqrt(HSIC(X, X) * HSIC(Y, Y)), giá trị trong [0, 1].
+    Captures *nonlinear* statistical dependence (paper's `cc()` chỉ linear).
+    Module C variant: thay Pearson CC bằng CKA giữ nguyên decomp loss shape.
+    """
+    N = x.shape[0]
+    x = x.reshape(N, -1)
+    y = y.reshape(N, -1)
+    x = x - x.mean(dim=0, keepdim=True)
+    y = y - y.mean(dim=0, keepdim=True)
+    K_x = x @ x.T          # [N, N] Gram matrix
+    K_y = y @ y.T
+    # HSIC dạng centered linear kernel — đã center features ở trên nên trace(K_X K_Y) đủ
+    hsic_xy = (K_x * K_y).sum()
+    hsic_xx = (K_x * K_x).sum()
+    hsic_yy = (K_y * K_y).sum()
+    return hsic_xy / (torch.sqrt(hsic_xx * hsic_yy) + eps)
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
@@ -63,11 +84,12 @@ class MIFH5Dataset(Dataset):
         return torch.Tensor(src), torch.Tensor(mri)
 
 
-# (use_gated, pixel_select)
+# (use_gated, pixel_select, decomp_fn) — decomp_fn = "cc" (paper) or "cka" (Module C: nonlinear)
 VARIANT_REGISTRY = {
-    "CDDFuse":                  (False, "max"),
-    "Combined-Gated-Saliency":  (True,  "saliency"),
-    "Combined-Gated-Learnable": (True,  "learnable"),  # try B.4 Learnable (best per-modal CT/PET in light)
+    "CDDFuse":                       (False, "max",       "cc"),
+    "Combined-Gated-Saliency":       (True,  "saliency",  "cc"),
+    "Combined-Gated-Learnable":      (True,  "learnable", "cc"),
+    "Combined-Gated-Saliency-CKA":   (True,  "saliency",  "cka"),  # Module C: CKA decomp
 }
 
 
@@ -94,9 +116,10 @@ def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    use_gated, pixel_select = VARIANT_REGISTRY[args.variant]
+    use_gated, pixel_select, decomp_fn_name = VARIANT_REGISTRY[args.variant]
+    decomp_fn = linear_cka if decomp_fn_name == "cka" else cc
     print(f"[train_MIF] device={device} variant={args.variant} "
-          f"(use_gated={use_gated}, pixel_select={pixel_select}) "
+          f"(use_gated={use_gated}, pixel_select={pixel_select}, decomp_fn={decomp_fn_name}) "
           f"epochs={args.num_epochs} (P1={args.epoch_gap}, P2={args.num_epochs - args.epoch_gap}) "
           f"batch={args.batch} amp={args.amp}")
 
@@ -167,7 +190,7 @@ def main():
                     src_hat, _ = decoder(src, f_V_B, f_V_D)
                     mri_hat, _ = decoder(mri, f_I_B, f_I_D)
 
-                    cc_B = cc(f_V_B, f_I_B); cc_D = cc(f_V_D, f_I_D)
+                    cc_B = decomp_fn(f_V_B, f_I_B); cc_D = decomp_fn(f_V_D, f_I_D)
                     mse_V = 5 * ssim_loss(src, src_hat) + mse(src, src_hat)
                     mse_I = 5 * ssim_loss(mri, mri_hat) + mse(mri, mri_hat)
                     grad_loss = l1(kornia.filters.SpatialGradient()(src),
@@ -186,7 +209,7 @@ def main():
                         f_F_B = base_fuse(f_V_B + f_I_B)
                         f_F_D = detail_fuse(f_V_D + f_I_D)
                     fused, _ = decoder(src, f_F_B, f_F_D)
-                    cc_B = cc(f_V_B, f_I_B); cc_D = cc(f_V_D, f_I_D)
+                    cc_B = decomp_fn(f_V_B, f_I_B); cc_D = decomp_fn(f_V_D, f_I_D)
                     loss_decomp = (cc_D ** 2) / (1.01 + cc_B)
                     fusion_loss, l_int, l_grad = criteria_fusion(src, mri, fused)
                     loss = fusion_loss + args.coeff_decomp * loss_decomp
