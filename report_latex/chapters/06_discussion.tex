@@ -41,9 +41,9 @@ Mặc dù pooled SIG chỉ 2/25, Combined-Paper-MIF đạt:
 \label{sec:limitations}
 
 \begin{enumerate}
-    \item \textbf{Train data split không hoàn toàn paper-faithful}: paper không công bố cụ thể 286 cặp nào trong 810 cặp Harvard được dùng. Chúng tôi sample bằng seed 42 → khác paper composition $\to$ baseline reproduction lệch $\sim 10\text{--}20\%$.
+    \item \textbf{Train data split không hoàn toàn paper-faithful}: paper không công bố cụ thể 286 cặp nào trong 810 cặp Harvard được dùng. Chúng tôi sample bằng seed 42 $\to$ khác paper composition $\to$ baseline reproduction lệch $\sim 10\text{--}20\%$.
     \item \textbf{Test set khác paper}: paper test 21 CT + 42 PET + 73 SPECT, chúng tôi dùng 24$\times$3 từ \texttt{data/reference/} để tương thích với 9 light retrain variants.
     \item \textbf{Batch 8 vs paper 16}: do RAM GPU P100 + AMP fp16 hạn chế. Convergence có thể chậm hơn.
     \item \textbf{Module C (decomp loss) chưa thử}: paper note $L_{\mathrm{decomp}}$ là critical, nhưng đồ án không khảo sát reformulation.
-    \item \textbf{Single seed (42)}: không đánh giá variance giữa các seed → cần $\geq 3$ seeds cho claim mạnh hơn.
+    \item \textbf{Single seed (42)}: không đánh giá variance giữa các seed $\to$ cần $\geq 3$ seeds cho claim mạnh hơn.
 \end{enumerate}
