@@ -24,3 +24,6 @@ kaggle_run/kernel-metadata.json
 
 # Claude scratch
 .claude/scheduled_tasks.lock
+
+# Reference papers (~90MB, store locally only)
+Paper/**/*.pdf
