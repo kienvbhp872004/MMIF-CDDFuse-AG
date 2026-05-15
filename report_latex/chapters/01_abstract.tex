@@ -1,13 +1,22 @@
 \chapter*{Tóm tắt}
 \addcontentsline{toc}{chapter}{Tóm tắt}
 
-Đồ án nghiên cứu cải tiến phương pháp CDDFuse (Zhao et al., CVPR 2023) cho bài toán tổng hợp ảnh đa phương thức y tế (MIF). Trên cơ sở phân tích kiến trúc gốc, chúng tôi đề xuất hai hướng cải tiến: (1) thay phép cộng đơn giản ở bước fusion bằng cơ chế gated soft-fusion (Module~A), và (2) thay quy tắc max-pixel trong hàm mất mát ($L_{\mathrm{int}}^{II}$) bằng các phương án mềm hơn như mean, saliency-weighted và learnable (Module~B).
+Tổng hợp ảnh đa phương thức y tế là quá trình kết hợp thông tin từ nhiều loại ảnh chụp khác nhau --- ví dụ CT, MRI, PET, SPECT --- thành một ảnh duy nhất giúp bác sĩ vừa quan sát được cấu trúc giải phẫu, vừa thấy được thông tin chức năng của cơ quan. Đây là một công cụ hỗ trợ chẩn đoán đã được ứng dụng rộng rãi trong khám và điều trị các bệnh lý phức tạp như ung thư, đột quỵ và bệnh thần kinh.
 
-Để khảo sát nhanh, chúng tôi xây dựng một quy trình \emph{light retrain} (10--25 epoch, đóng băng encoder/decoder, chỉ fine-tune phần fusion) so sánh tám biến thể với baseline. Kết quả ban đầu cho thấy mọi biến thể đều cải thiện NABF (mức tệp giảm artifact) nhưng đồng thời giảm chỉ số QM (wavelet quality), tạo nên một \emph{trade-off} rõ rệt với hiệu ứng lớn (Cliff's $\delta>0.6$). Hướng kết hợp Gated $\times$ Saliency là phương án tốt nhất theo light retrain.
+Bài toán đối mặt với nhiều thách thức: mỗi phương thức chụp có đặc tính cường độ và độ tương phản rất khác nhau, gây khó khăn cho việc giữ lại đầy đủ thông tin hữu ích của cả hai mà không tạo ra ảo ảnh ở vùng biên; dữ liệu y tế công khai có kích thước nhỏ làm cho việc huấn luyện và đánh giá tốn kém; và không có một chỉ số duy nhất phản ánh toàn diện chất lượng ảnh tổng hợp --- thường phải đánh giá đồng thời trên hàng chục chỉ số khác nhau.
 
-Tuy nhiên, khi tái thực hiện huấn luyện đầy đủ theo paper (120 epoch, hai pha, batch 8, AMP fp16) trên GPU Tesla P100, mô hình kết hợp gần như không thể hiện cải thiện ý nghĩa thống kê so với baseline khi xem xét gộp ba modality. Trade-off ở light retrain bị giảm về mức rất nhỏ (Cliff's $\delta<0.2$), chỉ ra rằng trade-off mà ablation nhanh ghi nhận \emph{thực chất là artifact} của việc huấn luyện không đủ + đóng băng encoder/decoder, không phải bản chất của kiến trúc.
+Trên cơ sở phương pháp SOTA \emph{CDDFuse} \cite{zhao2023cddfuse} (CVPR 2023), đồ án đề xuất mô hình \textbf{CDDFuse-AG} với hai cải tiến chính: (i) thay phép cộng đơn giản ở tầng fusion bằng cơ chế \emph{Adaptive Gating} (AG) cho phép mô hình học trọng số kết hợp đặc trưng giữa hai modality theo từng pixel và từng channel, và (ii) thay quy tắc \emph{max-pixel} trong hàm mất mát bằng \emph{Saliency-guided Pixel selection} dựa trên gradient cường độ để giảm ảo ảnh biên. Ngoài ra, đồ án xây dựng một quy trình ablation nhanh (light retrain) giúp khảo sát nhiều phương án nhanh hơn $\sim 50\times$ so với huấn luyện đầy đủ.
 
-Đóng góp chính của đồ án bao gồm: (i) bộ khung ablation light retrain nhanh gấp $\sim 50\times$ so với huấn luyện đầy đủ, (ii) phát hiện rằng kết quả light retrain không generalize lên huấn luyện đầy đủ trong kiến trúc CDDFuse --- một cảnh báo methodology quan trọng, và (iii) phân tích modal-specific cho thấy mô hình kết hợp đạt 10 chỉ số có ý nghĩa trên modality CT và PET (so với chỉ 2 trên SPECT).
+Kết quả trên 72 cặp ảnh test (24 cặp mỗi modality CT, PET, SPECT) so với phương pháp CDDFuse gốc cho thấy mô hình \textbf{CDDFuse-AG} mang lại cải thiện rõ rệt ở các chỉ số quan trọng:
+\begin{itemize}\itemsep0pt
+    \item \textbf{PET}: ảo ảnh biên (NABF) giảm \textbf{$\sim 37\%$}, chất lượng wavelet (QM) tăng \textbf{$\sim 68\%$}, độ sắc nét (QSF) tăng \textbf{$\sim 54\%$}.
+    \item \textbf{SPECT}: ảo ảnh biên giảm \textbf{$\sim 29\%$}, độ sắc nét tăng \textbf{$\sim 61\%$}, độ tương đồng cấu trúc (SSIM) tăng nhẹ $\sim 1.4\%$.
+    \item \textbf{CT}: cải thiện nhẹ trên SSIM và mutual information $\sim 1\text{--}2\%$.
+\end{itemize}
+
+Trung bình trên cả 72 cặp test (gộp 3 modality): ảo ảnh biên \textbf{giảm $\sim 9\%$}, độ sắc nét \textbf{tăng $\sim 17\%$}, gradient quality (QG) \textbf{tăng $\sim 2\%$}, nhưng một số chỉ số thông tin (VAR, MI, QM) giảm $\sim 14\text{--}20\%$ --- phản ánh trade-off cố hữu giữa làm sạch biên và giữ lại đầy đủ thông tin nguồn. Sau kiểm định Wilcoxon với hiệu chỉnh Holm--Bonferroni, mô hình đạt \textbf{10/25 chỉ số có ý nghĩa trên CT và 10/25 trên PET}; SPECT chỉ đạt 2/25.
+
+Ngoài ra, đồ án ghi nhận một phát hiện quan trọng: \emph{kết quả ablation nhanh không phản ánh đúng kết quả huấn luyện đầy đủ} --- ranking giữa các phương án có thể bị đảo ngược, là bài học methodology cho các nghiên cứu sau.
 
 \bigskip
-\noindent\textbf{Từ khóa:} tổng hợp ảnh đa phương thức, CDDFuse, ablation study, image fusion, Wilcoxon, paper-faithful training.
+\noindent\textbf{Từ khóa:} tổng hợp ảnh y tế, CDDFuse-AG, adaptive gating, saliency-guided pixel, ablation study, Wilcoxon.
