@@ -25,6 +25,15 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{enumitem}
+\usepackage{titlesec}
+
+% Reduce vertical space around chapter titles (default in report class wastes ~5cm at top)
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{-30pt}{20pt}
+\titleformat{name=\chapter,numberless}[hang]
+  {\normalfont\huge\bfseries}{}{0pt}{}
+\titlespacing*{name=\chapter,numberless}{0pt}{-30pt}{20pt}
 
 % ---------- Settings
 \graphicspath{{figures/}}
