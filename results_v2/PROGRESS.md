@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| Latest update | 2026-05-13 08:15 |
-| Variants completed | Light: 4/4 A + 4/4 B + Combined-Light + **Paper: CDDFuse-Paper-MIF + Combined-Saliency-Paper + Combined-Learnable-Paper ✓** |
-| Latest activity | **Combined-Learnable-Paper-MIF (B.4 thay B.3)**: MIXED 1 SIG pooled (vs Saliency 2). Per-modal CT 7 / PET 10 / SPECT 1. Saliency vẫn winner pooled, Learnable subtle gain ở raw delta nhưng không SIG. |
-| Status | ✅ Saliency = paper-faithful winner (B.3 > B.4 khi full train, ngược light retrain). Combined gain còn yếu, modal-specific (CT/PET tốt, SPECT yếu). |
-| Next planned | Thesis writeup hoặc thử Module C (decomp loss reformulation) — chưa khảo sát |
+| Latest update | 2026-05-15 17:18 |
+| Variants completed | Light: 4/4 A + 4/4 B + Combined-Light + **Paper: 4 variants (Baseline + 2 Combined + CKA) ✓** |
+| Latest activity | **Combined-CKA-Paper-MIF (Module C: linear CKA decomp)**: MIXED 1 SIG pooled (vs Saliency 2). Per-modal CT 9 / PET 9 / SPECT 2. CKA **không cải thiện** so với Pearson CC. |
+| Status | ✅ Module C exhausted: CKA decomp reformulation không giúp. Combined-Gated-Saliency-CC vẫn là winner paper-faithful (2 SIG pooled, 10+10 per-modal CT/PET). |
+| Next planned | Thesis writeup. Negative finding Module C cũng là contribution: "CKA reformulation không giúp khi train full" |
 
 ---
 
@@ -165,6 +165,53 @@ Test giả thuyết Module A winner × Module B winner sẽ phá trade-off NABF�
 ---
 
 ## Variants (chronological)
+
+### 2026-05-15 17:18 · `CDDFuse-Combined-CKA-Paper-MIF` — Module C: CKA decomp loss (P100 GPU 120 ep)
+
+**Hypothesis**: Paper's `L_decomp = (CC_D)²/(1.01 + CC_B)` dùng Pearson CC chỉ capture **linear** dependence. Thay bằng **linear CKA** (Centered Kernel Alignment) capture **nonlinear** dependence → có thể force decomposition mạnh hơn → fusion quality cao hơn.
+
+**Config**: Combined-Gated-Saliency + thay `cc()` bằng `linear_cka()` trong cả Phase I và Phase II decomp loss. 120 ep / 2-phase / batch 8 / P100 / AMP fp16.
+
+**Khó khăn implementation**:
+- V1 (first attempt): `linear_cka` overflow trong AMP fp16 → loss=NaN ngay epoch 1 → ckpt garbage (NaN trong DIDF_Decoder). Toàn bộ 120 ep wasted.
+- V2 (fix): `with torch.amp.autocast('cuda', enabled=False)` + row-normalize features trước Gram matrix → K_x bounded [-1,1] → stable. Loss 2.02 → 0.07 (P1) → 1.4 → 0.70 (P2), no NaN.
+
+**Stats verdict (vs CDDFuse_MIF.pth)**: **MIXED** (1 SIG / 25 pooled, 2 MARG)
+
+| Metric | Cliff's δ | Effect | p_adj |
+|---|---|---|---|
+| FMI | +0.109 | trivial SIG | 0.0000 |
+| NABF | +0.243 | small MARG | 0.3339 |
+| CE | +0.064 | trivial MARG | 0.7648 |
+| QSF | +0.123 | trivial NS | NS |
+| VAR | -0.481 | large NS | NS |
+| MI | -0.422 | medium NS | NS |
+| SSIM | -0.293 | small NS | NS |
+
+**Per-modality**: CT 9 SIG + 2 MARG, PET 9 SIG, SPECT 2 SIG.
+
+**So sánh CKA vs CC (apples-to-apples Module C)**:
+
+| | Combined-Saliency (CC) | Combined-Saliency-CKA (CKA) |
+|---|---|---|
+| Pooled SIG | **2** | 1 |
+| CT SIG | **10** | 9 |
+| PET SIG | **10** | 9 |
+| SPECT SIG | 2 | 2 (tie) |
+| NABF δ | +0.174 | **+0.243** (CKA raw better) |
+| QM δ | -0.118 | -0.188 (CC better — ít regression) |
+
+→ **CKA marginally tệ hơn CC** ở pooled SIG và per-modal CT/PET. Raw NABF δ cao hơn nhưng không SIG sau Holm.
+
+**Insight thesis-level**:
+- Hypothesis "nonlinear independence (CKA) > linear correlation (CC) cho decomp" → **KHÔNG confirmed** trên CDDFuse + medical data.
+- Possible reasons: (1) Encoder features đã đủ linear-separable do MDTA attention → CC đã catch hết, (2) Sample N=8 quá nhỏ cho CKA estimate (Gram matrix 8×8 rank-7), (3) CKA chỉ thay measure không thay structure → upper bound bị giới hạn bởi formula `D²/(1+B)`.
+
+**Quyết định**: Module C exhausted với linear CKA. Negative finding cũng có giá trị cho thesis — "tested 3 alternatives in Module C (CKA was first), none beat baseline CC in full training". Future work: thử C.10 Orthogonality, C.11 Frequency separation.
+
+**Files**: `results_v2/CDDFuse-Combined-CKA-Paper-MIF/`, `_stats/20260515_171823_Combined-CKA-Paper-MIF_vs_CDDFuse/`, train_history.json
+
+---
 
 ### 2026-05-13 08:15 · `CDDFuse-Combined-Learnable-Paper-MIF` — train + stats (P100 GPU 120 ep)
 
