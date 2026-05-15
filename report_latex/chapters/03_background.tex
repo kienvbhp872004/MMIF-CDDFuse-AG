@@ -6,37 +6,117 @@
 % - Phân loại: IVF (infrared-visible) vs MIF (medical)
 % - Các modality y tế: CT, MRI, PET, SPECT - tính chất từng cái
 
-\section{Phương pháp CDDFuse}
+\section{Phương pháp CDDFuse gốc}
 \label{sec:cddfuse}
 
+CDDFuse \cite{zhao2023cddfuse} là một phương pháp tổng hợp ảnh đa phương thức công bố tại CVPR 2023 dựa trên ý tưởng \emph{phân rã đặc trưng theo correlation} (Correlation-Driven Feature Decomposition). Mô hình sử dụng kiến trúc dual-branch Transformer--CNN cùng hàm mất mát đặc biệt để tách đặc trưng ảnh thành hai nhánh: nhánh \emph{Base} chứa thông tin chung tần số thấp (cấu trúc toàn cục, shared giữa các modality) và nhánh \emph{Detail} chứa thông tin tần số cao (texture, modality-specific). Việc fusion sau đó được thực hiện riêng cho từng nhánh, giúp giữ được cả thông tin chung và thông tin riêng.
+
 \subsection{Kiến trúc tổng quan}
-% TODO: Mô tả 4 thành phần: Restormer Encoder, BaseFeatureExtraction (Transformer),
-% DetailFeatureExtraction (INN), Restormer Decoder
-% Insert figure: figures/cddfuse_architecture.png
+\label{ssec:cddfuse-arch}
+
+Mô hình gồm bốn thành phần chính được tổ chức theo sơ đồ Encoder $\to$ Fuse $\to$ Decoder (Hình~\ref{fig:cddfuse-arch}):
+
+\begin{figure}[h]
+    \centering
+    % TODO: vẽ figure CDDFuse architecture (tham khảo docs/CDDFuse_architecture.md section 1)
+    \fbox{\parbox{0.8\textwidth}{\centering\textit{[Hình minh họa kiến trúc CDDFuse: Input $I_V, I_I$ \(\to\) Encoder (shared weights) \(\to\) tách nhánh Base/Detail \(\to\) Fuse \(\to\) Decoder \(\to\) ảnh tổng hợp]}}}
+    \caption{Sơ đồ tổng quan kiến trúc CDDFuse với bốn thành phần chính.}
+    \label{fig:cddfuse-arch}
+\end{figure}
+
+\paragraph{1. Restormer Encoder.}
+Encoder sử dụng Restormer block \cite{zamir2022restormer} làm xương sống, gồm:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Overlap Patch Embedding}: lớp tích chập 3$\times$3 biến ảnh xám 1 kênh thành đặc trưng 64 kênh, giữ nguyên kích thước không gian $H \times W$.
+    \item \textbf{Shallow Feature Extraction (SFE)}: 4 Restormer Transformer Block xếp nối tiếp. Mỗi block dùng cơ chế MDTA (Multi-Dconv Transposed Attention) tính attention theo channel ($O(C^2)$) thay vì spatial ($O((HW)^2)$), giúp scale tốt với ảnh độ phân giải cao.
+    \item \textbf{Base Transformer Encoder (BTE)}: một transformer block với 8 attention head, dùng spatial multi-head attention để học global context, sinh ra đặc trưng Base $f^B \in \mathbb{R}^{64 \times H \times W}$.
+    \item \textbf{Detail CNN Encoder (DCE)}: ba khối Invertible Neural Network (INN) kiểu RealNVP với affine coupling layer; mỗi khối có ba module $\theta_{\phi}, \theta_{\rho}, \theta_{\eta}$ là Inverted Residual Block (MobileNet-style), sinh ra đặc trưng Detail $f^D \in \mathbb{R}^{64 \times H \times W}$. Tính chất \emph{khả nghịch} (invertibility) của INN giúp không mất mát thông tin tần số cao, vốn nhạy với compression.
+\end{itemize}
+Encoder có \emph{trọng số dùng chung} (shared weights) cho cả hai modality $I_V$ và $I_I$, sinh ra hai cặp đặc trưng $(f_V^B, f_V^D)$ và $(f_I^B, f_I^D)$.
+
+\paragraph{2. Fusion Layer.}
+Đặc trưng Base và Detail của hai modality được hợp nhất riêng:
+\begin{align}
+f_F^B &= \mathrm{BaseFuseLayer}(f_I^B + f_V^B), \label{eq:fuse-base} \\
+f_F^D &= \mathrm{DetailFuseLayer}(f_I^D + f_V^D), \label{eq:fuse-detail}
+\end{align}
+trong đó:
+\begin{itemize}\itemsep0pt
+    \item \texttt{BaseFuseLayer} có cấu trúc giống BTE (một transformer block, 8 head).
+    \item \texttt{DetailFuseLayer} có cấu trúc giống DCE nhưng chỉ một INN block (so với 3 trong DCE).
+\end{itemize}
+
+\textbf{Điểm yếu}: Cả hai công thức (\ref{eq:fuse-base}) và (\ref{eq:fuse-detail}) đều bắt đầu bằng \emph{phép cộng đơn giản} $f_I + f_V$ trước khi cho qua layer xử lý. Phép cộng này coi đóng góp của hai modality là tương đương ở mọi pixel và mọi channel, không tận dụng được tính chất khác biệt giữa chúng. Đây là điểm mà mô-đun Adaptive Gating (Chương~\ref{ch:method}) sẽ thay thế.
+
+\paragraph{3. Restormer Decoder.}
+Decoder gồm:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Channel Reduction}: lớp tích chập 1$\times$1 nối hai đặc trưng Base và Detail (concatenate) rồi giảm số kênh từ 128 về 64.
+    \item \textbf{Refinement}: 4 Restormer block, giống cấu trúc SFE của Encoder.
+    \item \textbf{Output Head}: hai lớp tích chập 3$\times$3 (kênh: $64 \to 32 \to 1$) với LeakyReLU ở giữa, kết thúc bằng hàm sigmoid để đưa output về khoảng $[0, 1]$.
+\end{itemize}
+Decoder có hai chế độ: với bài toán tổng hợp ảnh hồng ngoại--khả kiến (IVF) có residual connection từ input, với bài toán ảnh y tế (MIF) thì không có residual.
+
+\paragraph{Tổng số tham số.}
+Toàn bộ CDDFuse có khoảng $\sim 1.20$M parameters, chia gần đều giữa Encoder ($\sim 50\%$) và Decoder ($\sim 42\%$), phần fusion layer chỉ chiếm $\sim 7\%$. Đây là một mô hình tương đối nhẹ so với nhiều phương pháp SOTA khác (DDFM 200M+, U2Fusion 6.4M).
 
 \subsection{Hàm mất mát}
 \label{ssec:loss}
 
-Hàm mất mát của CDDFuse có hai pha:
+Hàm mất mát của CDDFuse được thiết kế hai pha tách biệt theo tinh thần curriculum learning.
 
-\paragraph{Pha I (epoch 0--39):} Học decomposition cho Encoder + Decoder:
+\paragraph{Pha I (epoch 0--39 --- pretraining decomposition).}
+Trong pha này, chỉ Encoder và Decoder được huấn luyện. Mỗi modality được tự encode-decode (không có cross-modality fusion), với hàm mất mát:
 \begin{equation}
 L_I = \alpha_1 L_{\mathrm{recon}}^{V} + \alpha_1 L_{\mathrm{recon}}^{I} + \alpha_2 L_{\mathrm{decomp}} + \alpha_3 L_{\mathrm{TV}}
 \end{equation}
 trong đó:
 \begin{align}
 L_{\mathrm{recon}}^{X} &= 5\cdot L_{\mathrm{SSIM}}(X, \hat{X}) + L_{\mathrm{MSE}}(X, \hat{X}), \\
-L_{\mathrm{decomp}} &= \frac{(\mathrm{CC}_D)^2}{1.01 + \mathrm{CC}_B}.
+L_{\mathrm{decomp}}    &= \frac{(\mathrm{CC}_D)^2}{1.01 + \mathrm{CC}_B}, \\
+L_{\mathrm{TV}}        &= \|\nabla I_V - \nabla \hat{I}_V\|_1.
+\end{align}
+$L_{\mathrm{recon}}^{X}$ buộc Decoder tái tạo lại được ảnh gốc từ cặp đặc trưng Base--Detail. $L_{\mathrm{decomp}}$ là \emph{Correlation-Driven loss} cốt lõi: tử số $(\mathrm{CC}_D)^2$ ép correlation giữa Detail của hai modality về $0$ (Detail mang thông tin modality-specific, nên không nên correlated); mẫu số $1.01 + \mathrm{CC}_B$ thưởng khi correlation giữa Base hai modality cao (Base mang thông tin shared). $L_{\mathrm{TV}}$ là gradient preservation loss để giữ đường biên.
+
+\paragraph{Pha II (epoch 40--119 --- fusion training).}
+Sau khi Encoder/Decoder đã học được phép phân rã ổn định ở Pha I, Pha II huấn luyện thêm BaseFuseLayer, DetailFuseLayer (và tiếp tục fine-tune Encoder/Decoder) với hàm mất mát fusion:
+\begin{equation}
+L_{II} = L_{\mathrm{fusion}} + \alpha_4 L_{\mathrm{decomp}}
+\end{equation}
+trong đó $L_{\mathrm{fusion}}$ gồm hai thành phần:
+\begin{align}
+L_{\mathrm{int}}^{II}  &= \|\hat{I}_F - \max(I_V, I_I)\|_F^2, \label{eq:lint}\\
+L_{\mathrm{grad}}^{II} &= \|\nabla \hat{I}_F - \max(|\nabla I_V|, |\nabla I_I|)\|_1.
 \end{align}
 
-\paragraph{Pha II (epoch 40--119):} Huấn luyện tất cả với fusion loss:
-\begin{equation}
-L_{II} = L_{\mathrm{fusion}} + \alpha_4 L_{\mathrm{decomp}},
-\end{equation}
-trong đó $L_{\mathrm{fusion}}$ bao gồm intensity loss $L_{\mathrm{int}}^{II}$ và gradient loss $L_{\mathrm{grad}}^{II}$.
+\textbf{Điểm yếu}: Phương trình (\ref{eq:lint}) sử dụng \emph{quy tắc max-pixel} làm target intensity --- chọn pixel sáng hơn giữa hai modality. Khi cường độ của $I_V$ và $I_I$ trái chiều tại biên (ví dụ ranh giới giữa xương và mô mềm trong cặp CT--MRI), max-rule tạo ra discontinuity, dẫn đến ảo ảnh sáng--tối ở vùng biên. Đây là điểm mà cơ chế Saliency-guided Pixel selection (Chương~\ref{ch:method}) sẽ cải tiến.
 
-\subsection{Quy tắc fusion ở Pha II}
-% TODO: Mô tả paper code dùng BaseFuseLayer(f_I + f_V) — sum trước rồi transform
+\paragraph{Cấu hình hệ số.}
+Theo paper text \cite{zhao2023cddfuse}: $\alpha_1 = 1$, $\alpha_2 = 2$, $\alpha_3 = 10$, $\alpha_4 = 2$. Tuy nhiên trong mã nguồn release giá trị $\alpha_3 = 5$. Đồ án dùng $\alpha_3 = 5$ theo code release để đảm bảo tính tái lặp.
+
+\subsection{Quy trình huấn luyện}
+\label{ssec:cddfuse-train}
+
+CDDFuse được huấn luyện với cấu hình paper:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Tổng số epoch}: 120 (Pha I: 40, Pha II: 80).
+    \item \textbf{Optimizer}: bốn Adam riêng cho Encoder, Decoder, BaseFuseLayer, DetailFuseLayer.
+    \item \textbf{Learning rate}: $10^{-4}$, StepLR $\gamma = 0.5$ mỗi 20 epoch, floor $10^{-6}$.
+    \item \textbf{Batch size}: 16 theo paper text, 8 theo code release. Đồ án dùng 8 trên GPU Tesla P100 16GB kết hợp AMP fp16.
+    \item \textbf{Gradient clipping}: norm max $0.01$.
+    \item \textbf{Dữ liệu}: ảnh được cắt thành patch $128 \times 128$.
+\end{itemize}
+
+\subsection{Đánh giá hiệu năng của CDDFuse gốc}
+\label{ssec:cddfuse-eval}
+
+Trên tập test Harvard medical 72 cặp ảnh ($24 \times 3$ modality), CDDFuse pretrained công bố đạt các chỉ số tham khảo:
+\begin{itemize}\itemsep0pt
+    \item CT: NABF $\approx 0.020$, SSIM $\approx 1.48$, QM $\approx 0.009$.
+    \item PET: NABF $\approx 0.018$, SSIM $\approx 1.40$, QM $\approx 0.074$.
+    \item SPECT: NABF $\approx 0.033$, SSIM $\approx 1.43$, QM $\approx 0.168$.
+\end{itemize}
+Mặc dù đạt hiệu năng tốt trên cả ba modality, CDDFuse vẫn còn dư địa cải thiện ở các chỉ số liên quan đến ảo ảnh biên (NABF cao trên SPECT) và chất lượng wavelet (QM thấp trên CT). Đây là động lực cho đề xuất CDDFuse-AG ở Chương~\ref{ch:method}.
 
 \section{Các phương pháp so sánh (SOTA)}
 \label{sec:sota}
