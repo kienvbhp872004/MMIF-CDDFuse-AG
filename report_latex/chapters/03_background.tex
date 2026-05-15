@@ -212,6 +212,56 @@ Trong khi đó MM-Net-Fusion (rank 1) có composite z chỉ cao hơn 0.1 nhưng 
 \section{Đánh giá thống kê}
 \label{sec:stats-bg}
 
+\subsection{Cơ sở kiểm định giả thuyết thống kê}
+\label{ssec:hypothesis-testing}
+
+Trước khi đi vào các phép kiểm định cụ thể, đồ án trình bày ngắn gọn các khái niệm nền tảng của \emph{Null Hypothesis Significance Testing} (NHST) --- khung lý thuyết cơ bản của kiểm định thống kê trong khoa học thực nghiệm.
+
+\paragraph{Giả thuyết không và giả thuyết đối.}
+Trong mỗi phép kiểm định, ta thiết lập hai giả thuyết loại trừ lẫn nhau:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Giả thuyết không} ($H_0$): mệnh đề ``mặc định'' --- thường là ``không có hiệu ứng / không có cải thiện''. $H_0$ được chấp nhận \emph{trừ khi} có đủ bằng chứng để bác bỏ.
+    \item \textbf{Giả thuyết đối} ($H_1$): mệnh đề muốn chứng minh --- ``có hiệu ứng / có cải thiện''.
+\end{itemize}
+Trong đồ án, $H_0$: ``CDDFuse-AG không khác CDDFuse baseline''; $H_1$: ``CDDFuse-AG cho metric tốt hơn CDDFuse baseline''.
+
+\paragraph{p-value.}
+$p$-value là xác suất quan sát được dữ liệu \emph{ít nhất cực đoan như dữ liệu hiện tại} \emph{nếu $H_0$ đúng}. $p$ càng nhỏ, dữ liệu càng ``hiếm'' dưới $H_0$, càng có lý do bác bỏ $H_0$.
+
+\paragraph{Mức ý nghĩa $\alpha$.}
+$\alpha$ là ngưỡng quyết định, thường $\alpha = 0.05$. Quy tắc:
+\begin{itemize}\itemsep0pt
+    \item Nếu $p < \alpha$: \emph{bác bỏ} $H_0$, kết luận \emph{có ý nghĩa thống kê}.
+    \item Nếu $p \ge \alpha$: \emph{không bác bỏ} $H_0$, dữ liệu chưa đủ để kết luận có hiệu ứng.
+\end{itemize}
+
+\paragraph{Sai lầm loại I và loại II.}
+Khi ra quyết định dựa trên $p$-value, có thể mắc hai loại sai lầm:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& \textbf{$H_0$ thực sự đúng} & \textbf{$H_0$ thực sự sai} \\
+\midrule
+\textbf{Bác bỏ $H_0$} (kết luận có hiệu ứng) & Sai lầm loại I (xác suất $\alpha$) & Đúng \\
+\textbf{Không bác bỏ $H_0$} & Đúng & Sai lầm loại II (xác suất $\beta$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+$1 - \beta$ gọi là \emph{power} (độ mạnh) của phép kiểm định --- xác suất phát hiện ra hiệu ứng khi nó thực sự tồn tại. Power phụ thuộc vào cỡ mẫu $n$, độ lớn hiệu ứng thật, và $\alpha$.
+
+\paragraph{One-sided vs two-sided.}
+Khi $H_1$ chỉ rõ hướng (variant \emph{tốt hơn} baseline, không quan tâm trường hợp tệ hơn), ta dùng \emph{one-sided test}. Khi quan tâm cả hai chiều khác biệt, ta dùng \emph{two-sided}. Đồ án dùng \emph{one-sided test} (alternative='greater') vì giả thuyết nghiên cứu có hướng rõ ràng: CDDFuse-AG được thiết kế để \emph{cải thiện} baseline, không phải làm xấu đi.
+
+\paragraph{Kiểm định tham số vs phi-tham số.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{Parametric test} (ví dụ t-test): giả định phân phối cụ thể (thường là chuẩn). Mạnh khi giả định đúng nhưng dễ sai khi vi phạm.
+    \item \textbf{Non-parametric test} (Wilcoxon, Mann--Whitney): không giả định phân phối, chỉ dựa vào thứ hạng (rank). Robust nhưng có thể kém mạnh hơn parametric khi dữ liệu thực sự chuẩn.
+\end{itemize}
+Vì các chỉ số chất lượng ảnh thường có phân phối lệch và có outlier, đồ án ưu tiên non-parametric.
+
+\subsection{Pipeline đánh giá của đồ án}
+\label{ssec:eval-pipeline}
+
 So sánh hai mô hình tổng hợp ảnh trên 22 chỉ số chất lượng không thể chỉ dựa vào trung bình. Hai vấn đề có thể gặp:
 \begin{itemize}\itemsep0pt
     \item \textbf{Chênh lệch trung bình nhỏ có thể là ngẫu nhiên}: với 24 ảnh test, chênh lệch $0.001$ ở SSIM có thể chỉ là sampling noise.
@@ -325,6 +375,88 @@ p_{(i)}^{\mathrm{adj}} = \max_{j \le i} \min\big(1,\; (K - j + 1) \cdot p_{(j)}\
     \item Mạnh hơn Bonferroni đơn giản (sensitivity cao hơn) nhưng vẫn kiểm soát FWER ở mức $\alpha$.
     \item Không yêu cầu independence giữa các test (Bonferroni cũng vậy, nhưng Benjamini--Hochberg cần).
     \item Phù hợp khi muốn \emph{strong control} FWER --- mỗi SIG được công nhận thực sự là cải thiện.
+\end{itemize}
+
+\subsection{Các chỉ số chất lượng ảnh tổng hợp}
+\label{ssec:metrics}
+
+Đồ án sử dụng \textbf{22 chỉ số chất lượng} chia thành 6 nhóm theo bản chất đo lường:
+
+\paragraph{Nhóm 1 --- Thông tin (Information-theoretic).}
+\begin{itemize}\itemsep0pt
+    \item \textbf{EN} (Entropy): độ phong phú thông tin của ảnh tổng hợp, dựa trên histogram.
+    \item \textbf{MI} (Mutual Information): lượng thông tin chung giữa ảnh tổng hợp và ảnh nguồn.
+    \item \textbf{CE} (Cross Entropy): khoảng cách phân phối; thấp tốt hơn.
+    \item \textbf{NCIE} (Nonlinear Correlation Information Entropy): tương quan phi tuyến.
+\end{itemize}
+
+\paragraph{Nhóm 2 --- Cấu trúc (Structural).}
+\begin{itemize}\itemsep0pt
+    \item \textbf{SSIM} (Structural Similarity): độ tương đồng cấu trúc với ảnh nguồn.
+    \item \textbf{PSNR} (Peak SNR): tỷ số tín hiệu trên nhiễu.
+    \item \textbf{RMSE} (Root Mean Square Error): sai số bình phương trung bình; thấp tốt hơn.
+\end{itemize}
+
+\paragraph{Nhóm 3 --- Biên và texture (Edge \& gradient).}
+\begin{itemize}\itemsep0pt
+    \item \textbf{QG / Q\textsuperscript{AB/F}}: chất lượng truyền tải gradient từ ảnh nguồn sang ảnh tổng hợp.
+    \item \textbf{NABF} (Normalized Artifact-Based Fusion): ảo ảnh biên do fusion sinh ra; \emph{thấp tốt hơn}.
+    \item \textbf{EI} (Edge Intensity): cường độ biên.
+    \item \textbf{AG} (Average Gradient): gradient trung bình.
+    \item \textbf{FMI} (Feature Mutual Information): MI dựa trên feature.
+\end{itemize}
+
+\paragraph{Nhóm 4 --- Wavelet và đa độ phân giải.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{QM}: chất lượng wavelet --- ảnh tổng hợp giữ được bao nhiêu thành phần wavelet của hai nguồn.
+    \item \textbf{QC} (Cvejic): chất lượng theo Cvejic.
+    \item \textbf{QS} (Yang): chất lượng theo Yang dựa trên SSIM cục bộ.
+\end{itemize}
+
+\paragraph{Nhóm 5 --- Saliency và HVS (Human Visual System).}
+\begin{itemize}\itemsep0pt
+    \item \textbf{QCB} (Chen--Blum): mô phỏng nhận thức HVS.
+    \item \textbf{QCV} (Chen--Varshney): độ khác biệt theo HVS; thấp tốt hơn.
+    \item \textbf{QY} (Yang--Bao): thước đo chất lượng Yang--Bao.
+\end{itemize}
+
+\paragraph{Nhóm 6 --- Tần số không gian và tương đồng tổng quát.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{SF} (Spatial Frequency): tần số không gian của ảnh.
+    \item \textbf{QSF}: thước đo tần số không gian fusion-specific.
+    \item \textbf{VAR} (Variance): độ tương phản tổng quát.
+    \item \textbf{QMI}, \textbf{QNCIE}, \textbf{QTE}: các phiên bản fusion-specific của MI, NCIE, Tsallis entropy.
+\end{itemize}
+
+Các chỉ số trên không độc lập với nhau --- nhiều chỉ số có \emph{correlation cao} (ví dụ EN và MI thường tăng cùng nhau, NABF và QG thường nghịch). Điều này nghĩa là khi đếm SIG, các chỉ số liên quan có thể cùng SIG hoặc cùng không SIG, làm cho ngưỡng ``5 SIG'' của đồ án trở nên \emph{conservative} --- một cải thiện thực sự thường thể hiện trên một nhóm chỉ số cùng lúc, không chỉ một metric đơn lẻ.
+
+\subsection{Cỡ mẫu và độ mạnh (power)}
+\label{ssec:power}
+
+Với mỗi modality, đồ án có $n = 24$ ảnh test --- một cỡ mẫu \emph{nhỏ} theo tiêu chuẩn thống kê. Cỡ mẫu nhỏ làm giảm power, tức tăng xác suất sai lầm loại II (bỏ sót cải thiện thực sự). Power của Wilcoxon test phụ thuộc:
+\begin{equation}
+\text{Power} \approx \Phi\left(\sqrt{n} \cdot \delta_e - z_{1-\alpha}\right)
+\end{equation}
+trong đó $\delta_e$ là effect size (Cliff's $\delta$), $z_{1-\alpha}$ là quantile của phân phối chuẩn. Với $n = 24$, $\alpha = 0.05$ one-sided, power tối thiểu để phát hiện hiệu ứng:
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Cliff's $\delta$} & \textbf{Power ước lượng} \\
+\midrule
+$0.147$ (small)  & $\sim 0.30$ \\
+$0.330$ (medium) & $\sim 0.75$ \\
+$0.474$ (large)  & $\sim 0.95$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Tức là cải thiện small ở $n = 24$ có chỉ $30\%$ khả năng được phát hiện --- đây là lý do tại sao đồ án còn báo cáo \emph{pooled} (gộp 3 modality, $n_{\mathrm{pool}} = 72$) bên cạnh per-modal. Với $n = 72$, power cho small effect tăng lên $\sim 0.70$, đáng tin hơn nhiều.
+
+\paragraph{Hệ quả thiết kế thí nghiệm.}
+Cỡ mẫu nhỏ khiến đồ án ưu tiên:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Effect size} thay vì chỉ p-value --- một hiệu ứng \emph{large} với $p$ tiệm cận $0.05$ đáng tin hơn một hiệu ứng \emph{small} với $p = 0.001$.
+    \item \textbf{Pooled analysis} (gộp 3 modality, $n = 72$) để xác nhận trend.
+    \item \textbf{Per-modal} để phát hiện hiệu ứng modality-specific.
 \end{itemize}
 
 \subsection{Quy tắc quyết định cuối cùng}
