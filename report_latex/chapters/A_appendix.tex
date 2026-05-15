@@ -1,3 +1,137 @@
+\section{Khảo sát thiết kế Module A và Module B (light retrain)}
+\label{app:design-exploration}
+
+Trước khi chốt phương án \emph{Adaptive Gating} cho Module A và \emph{Saliency-guided Pixel} cho Module B trong CDDFuse-AG (Chương~\ref{ch:method}), đồ án đã khảo sát \emph{ba phương án khác cho mỗi module} bằng \emph{light retrain} (10--25 epoch, đóng băng Encoder/Decoder, chỉ fine-tune fusion layer + biến thể). Mục đích là sàng lọc nhanh các candidate trước khi cam kết tài nguyên cho huấn luyện đầy đủ.
+
+\paragraph{Lưu ý phương pháp luận.}
+Kết quả light retrain ở phụ lục này \emph{không phải đóng góp chính} của đồ án vì:
+\begin{enumerate}\itemsep0pt
+    \item Cấu hình huấn luyện khác paper (epoch ít hơn, Encoder/Decoder đóng băng).
+    \item Một phát hiện thực nghiệm (Mục~\ref{sec:disc-key}) cho thấy kết quả light retrain có thể \emph{không generalize} sang huấn luyện đầy đủ.
+\end{enumerate}
+Tuy nhiên, các số liệu này đã định hướng cho việc chọn phương án cuối cùng, vì vậy được lưu lại để tham khảo.
+
+\subsection{Module A --- 4 phương án Fusion Rule}
+\label{app:moduleA-ablation}
+
+Bốn phương án thử nghiệm thay phép cộng $f_I + f_V$:
+\begin{itemize}\itemsep0pt
+    \item \textbf{A.1 Sum} (baseline): phép cộng đơn giản như CDDFuse gốc.
+    \item \textbf{A.2 Gated} (chọn): cổng softmax mềm $g \odot f_V + (1-g) \odot f_I$, 16K params.
+    \item \textbf{A.3 CrossAttn}: cross-modality attention kiểu Restormer MDTA, 37K params.
+    \item \textbf{A.4 ChannelMoE}: per-channel mixture of 3 experts, 5K params.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Module A --- Cliff's $\delta$ so với baseline CDDFuse, light retrain 10 ep CPU/GPU. Hiệu lực: $L$=large, $m$=medium, $s$=small, $t$=trivial. \textbf{In đậm} = phương án tốt nhất.}
+\label{tab:app-moduleA}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & A.1 Sum & A.2 Gated & A.3 CrossAttn & A.4 ChannelMoE \\
+\midrule
+NABF $\downarrow$ ($\delta$ improvement) & 0 (ref) & \textbf{+0.596 (L)} & +0.529 (L) & +0.504 (L) \\
+QSF $\uparrow$                  & 0 (ref) & \textbf{+0.602 (L)} & +0.542 (L) & +0.488 (L) \\
+PSNR $\uparrow$                 & 0 (ref) & +0.243 (s) & +0.238 (s) & \textbf{+0.256 (s)} \\
+EN $\uparrow$                   & 0 (ref) & +0.035 (t) & \textbf{+0.048 (t)} & +0.016 (t) \\
+QM $\uparrow$ (regression)      & 0 (ref) & \textbf{-0.602 (L)} & -0.637 (L) & -0.745 (L) \\
+\midrule
+Số SIG / 22 (pooled) & 0 & \textbf{5/22} & 5/22 & 4/22 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Kết luận Module A.}
+A.2 Gated thắng cả 3 alternatives ở các chỉ số chính (NABF, QSF) và có QM regression nhẹ nhất. Đồng thời simplest architecture (chỉ một sigmoid gate). $\to$ Chọn A.2 Gated làm \textbf{Adaptive Gating} của CDDFuse-AG.
+
+\subsection{Module B --- 4 phương án Loss Target}
+\label{app:moduleB-ablation}
+
+Bốn phương án thay quy tắc max-pixel trong $L_{\mathrm{int}}^{II}$:
+\begin{itemize}\itemsep0pt
+    \item \textbf{B.1 Max} (baseline): $\max(I_Y, I_{IR})$ như CDDFuse gốc.
+    \item \textbf{B.2 Mean}: $0.5 \cdot (I_Y + I_{IR})$.
+    \item \textbf{B.3 Saliency} (chọn): trọng số gradient $w = |\nabla I_Y| / (|\nabla I_Y| + |\nabla I_{IR}|)$.
+    \item \textbf{B.4 Learnable}: small CNN dự đoán $w$ từ $[I_Y, I_{IR}, \nabla I_Y, \nabla I_{IR}]$.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Module B --- Cliff's $\delta$ so với baseline CDDFuse, light retrain. \textbf{In đậm} = phương án tốt nhất.}
+\label{tab:app-moduleB}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & B.1 Max & B.2 Mean & B.3 Saliency & B.4 Learnable \\
+\midrule
+NABF $\downarrow$ ($\delta$) & 0 (ref) & +0.669 (L) & \textbf{+0.671 (L)} & +0.671 (L) \\
+QSF $\uparrow$               & 0 (ref) & \textbf{+0.591 (L)} & +0.568 (L) & +0.543 (L) \\
+PSNR $\uparrow$              & 0 (ref) & \textbf{+0.251 (s)} & +0.236 (s) & +0.228 (s) \\
+QMI $\uparrow$               & 0 (ref) & NS         & +0.047 SIG & \textbf{+0.074 SIG} \\
+QM $\uparrow$ (regression)   & 0 (ref) & -0.735 (L) & -0.732 (L) & \textbf{-0.731 (L)} \\
+\midrule
+Số SIG / 22 (pooled) & 0 & 4/22 & \textbf{6/22} & 5/22 \\
+Per-modal CT SIG     & 0 & 6 & 6 & \textbf{9} \\
+Per-modal PET SIG    & 0 & 6 & 7 & \textbf{8} \\
+Per-modal SPECT SIG  & 0 & 2 & 2 & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Kết luận Module B.}
+B.3 Saliency thắng pooled SIG (6/22) --- thể hiện robustness tốt nhất khi gộp 3 modality. B.4 Learnable thắng per-modal CT/PET (9 và 8) nhưng yếu hơn pooled, cho thấy CNN học có thể overfit modality-specific. $\to$ Chọn B.3 Saliency làm \textbf{Saliency-guided Pixel} của CDDFuse-AG vì ưu tiên \emph{nhất quán giữa các modality}.
+
+\subsection{Combined model --- light retrain (xác nhận ban đầu)}
+\label{app:combined-light}
+
+Sau khi chốt A.2 + B.3, đồ án chạy mô hình kết hợp light retrain trước khi cam kết huấn luyện đầy đủ:
+
+\begin{table}[h]
+\centering
+\small
+\caption{Combined-Gated-Saliency (light retrain) vs baseline. So sánh với kết quả paper-faithful trong Chương~\ref{ch:results}.}
+\label{tab:app-combined-light}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Light retrain ($\delta$)} & \textbf{Paper-faithful ($\delta$, Ch.~\ref{ch:results})} \\
+\midrule
+NABF $\uparrow$ ($\delta$ improvement) & +0.659 (L) & +0.174 (small) \\
+QM $\uparrow$ (regression)             & -0.587 (L) & -0.118 (trivial) \\
+QSF $\uparrow$                         & +0.679 (L) & +0.218 (small) \\
+Pooled SIG / 25                        & 4/25       & 2/25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Phát hiện về methodology.}
+Bảng~\ref{tab:app-combined-light} cho thấy \emph{magnitude} hiệu ứng giảm $3\text{--}5\times$ khi chuyển từ light retrain sang huấn luyện đầy đủ. Cả gain (NABF, QSF) lẫn regression (QM) đều bị ``co lại''. Đây là một bài học methodology được thảo luận trong Mục~\ref{sec:disc-key}: light retrain phù hợp cho \emph{sàng lọc} candidates nhưng \emph{không đáng tin} cho việc estimate hiệu ứng cuối cùng. Vì vậy mọi claim của đồ án về CDDFuse-AG đều dựa trên kết quả paper-faithful (Chương~\ref{ch:results}), không phải light retrain.
+
+\subsection{Thử nghiệm bổ sung --- Module C (Decomp Loss)}
+\label{app:moduleC}
+
+Một phương án thử nghiệm thêm: thay Pearson Correlation Coefficient (CC) trong $L_{\mathrm{decomp}}$ bằng \textbf{linear CKA} (Centered Kernel Alignment) \cite{kornblith2019cka} để bắt được dependence phi tuyến. Mô hình \texttt{Combined-Saliency-CKA} được huấn luyện đầy đủ 120 epoch và đánh giá tương tự CDDFuse-AG:
+
+\begin{table}[h]
+\centering
+\small
+\caption{Module C (CKA) so với Module C (CC) paper, cả hai paper-faithful. \textbf{In đậm} = tốt hơn.}
+\label{tab:app-moduleC}
+\begin{tabular}{lcc}
+\toprule
+\textbf{} & \textbf{CDDFuse-AG (CC)} & \textbf{Combined-Saliency-CKA} \\
+\midrule
+Pooled SIG / 22 & \textbf{2} & 1 \\
+Per-modal CT SIG  & \textbf{10} & 9 \\
+Per-modal PET SIG & \textbf{10} & 9 \\
+Per-modal SPECT SIG & \textbf{2}  & 2 (tie) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Kết luận Module C.}
+CKA decomposition loss \emph{không cải thiện} so với Pearson CC trong huấn luyện đầy đủ. Có thể do: (1) Encoder MDTA attention đã sinh ra feature gần linear-separable, CC đủ; (2) cỡ mẫu mỗi batch $N = 8$ nhỏ, ước lượng CKA (Gram matrix $8 \times 8$) không ổn định; (3) bottleneck nằm ở \emph{cấu trúc công thức} $D^2 / (1+B)$ chứ không phải measure dependence. Đây là một negative result có giá trị --- gợi ý hướng future work: cần reformulate \emph{cấu trúc công thức} decomp loss thay vì chỉ thay measure.
+
 \section{Chi tiết training history}
 \label{app:training}
 
