@@ -459,6 +459,31 @@ Cỡ mẫu nhỏ khiến đồ án ưu tiên:
     \item \textbf{Per-modal} để phát hiện hiệu ứng modality-specific.
 \end{itemize}
 
+\subsection{Per-modality SIG vs Pooled SIG}
+\label{ssec:per-modal-vs-pooled}
+
+Khi đánh giá một biến thể trên 3 modality (CT, PET, SPECT), có \emph{hai cách đếm} số chỉ số có ý nghĩa thống kê:
+
+\paragraph{Per-modality SIG.}
+Thực hiện Wilcoxon test \emph{riêng cho từng modality}. Ví dụ với 24 cặp ảnh CT, test 22 chỉ số $\to$ Holm correction $\to$ đếm số metric SIG cho CT. Lặp lại cho PET (24 cặp) và SPECT (24 cặp). Kết quả ghi dưới dạng \emph{ba con số}, ví dụ ``CT: 10/22, PET: 10/22, SPECT: 2/22''.
+
+\paragraph{Pooled SIG.}
+Gộp toàn bộ chênh lệch của \emph{cả ba modality} thành một mẫu lớn $n_{\mathrm{pool}} = 24 \times 3 = 72$, rồi chạy Wilcoxon test \emph{một lần} cho mỗi chỉ số trên 72 cặp. Kết quả là \emph{một con số}, ví dụ ``Pooled: 2/22''.
+
+\paragraph{Ý nghĩa và sự khác biệt.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{Per-modality SIG} cho biết \emph{cải thiện modality nào}. Hiệu ứng modality-specific (ví dụ Combined cải thiện CT/PET nhưng không cải thiện SPECT) sẽ thể hiện rõ ở đây.
+    \item \textbf{Pooled SIG} cho biết cải thiện \emph{trung bình trên toàn bộ test set}. Nếu một modality có gain dương lớn còn modality khác có gain âm, hai chiều cancel nhau khi pool $\to$ pooled có thể không SIG dù per-modal có.
+\end{itemize}
+
+Vì vậy hai số liệu này \emph{không thay thế nhau} mà \emph{bổ sung}. Một mô hình có per-modal cao nhưng pooled thấp thường có ``cải thiện modality-specific'' --- tốt cho modality cụ thể nhưng kém tổng quát. Một mô hình có pooled cao thường có ``cải thiện overall'' nhất quán trên cả 3 modality.
+
+Đồ án \emph{báo cáo cả hai} và đặt theo thứ tự ưu tiên:
+\begin{enumerate}\itemsep0pt
+    \item \textbf{Per-modal SIG} \emph{cho từng modality} --- thông số chi tiết, có actionable insight.
+    \item \textbf{Pooled SIG} --- thông số tổng quan, dùng cho verdict tổng thể (Mục~\ref{ssec:decision-rule}).
+\end{enumerate}
+
 \subsection{Quy tắc quyết định cuối cùng}
 \label{ssec:decision-rule}
 

