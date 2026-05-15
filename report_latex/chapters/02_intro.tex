@@ -1,32 +1,68 @@
 \section{Đặt vấn đề}
 \label{sec:problem}
 
-% TODO: Giới thiệu bài toán tổng hợp ảnh đa phương thức y tế (MIF):
-% - Tại sao cần (CT/MRI/PET/SPECT thông tin bổ sung)
-% - Ứng dụng lâm sàng
-% - Thách thức (modality khác nhau, contrast, anatomy vs function)
+Trong y học hiện đại, chẩn đoán chính xác đóng vai trò quyết định trong việc lựa chọn phác đồ điều trị, đặc biệt với các bệnh lý phức tạp như ung thư, đột quỵ và rối loạn thần kinh. Để hỗ trợ quá trình chẩn đoán, các bác sĩ thường phải xem xét đồng thời nhiều loại ảnh y khoa, mỗi loại cung cấp một góc nhìn khác nhau về cơ thể người bệnh:
 
-\section{Mục tiêu nghiên cứu}
+\begin{itemize}\itemsep2pt
+    \item \textbf{Chụp cắt lớp vi tính (CT)} cho thấy rõ cấu trúc xương và mô đặc, là phương thức tiêu chuẩn để phát hiện gãy xương, xuất huyết.
+    \item \textbf{Chụp cộng hưởng từ (MRI)} có độ phân giải cao đối với mô mềm, hữu ích trong chẩn đoán bệnh lý thần kinh, khối u và mô cơ.
+    \item \textbf{Chụp cắt lớp phát xạ positron (PET)} và \textbf{chụp cắt lớp đơn photon (SPECT)} cung cấp thông tin chức năng và chuyển hóa --- chẳng hạn vùng não đang hoạt động hay tế bào ung thư đang phát triển.
+\end{itemize}
+
+Mỗi phương thức đều có ưu điểm và hạn chế riêng. CT cho thông tin giải phẫu rõ ràng nhưng không thấy được chuyển hóa; PET/SPECT cho thông tin chức năng nhưng độ phân giải không gian thấp, khó định vị chính xác tổn thương. Trong thực hành lâm sàng, bác sĩ phải chuyển đổi qua lại giữa các loại ảnh, dẫn đến vất vả và dễ bỏ sót thông tin.
+
+\textbf{Tổng hợp ảnh đa phương thức y tế (Medical Image Fusion --- MIF)} ra đời nhằm giải quyết vấn đề này: tự động kết hợp thông tin bổ sung từ hai (hoặc nhiều hơn) phương thức ảnh thành một ảnh duy nhất, vừa giữ lại cấu trúc giải phẫu chi tiết, vừa thể hiện được thông tin chức năng. Một ảnh tổng hợp tốt giúp rút ngắn thời gian chẩn đoán, giảm sai sót và hỗ trợ ra quyết định lâm sàng nhanh hơn.
+
+Trong những năm gần đây, các phương pháp dựa trên học sâu (deep learning) đã đạt được kết quả vượt trội so với các thuật toán truyền thống dựa trên biến đổi (wavelet, NSCT, ...) hay phân tích sparse-coding. Trong số đó, \textbf{CDDFuse} \cite{zhao2023cddfuse} (CVPR 2023) là một phương pháp tiêu biểu, sử dụng kiến trúc dual-branch Transformer-CNN cùng cơ chế phân rã đặc trưng theo correlation, đạt hiệu năng SOTA trên cả bài toán tổng hợp ảnh hồng ngoại-khả kiến và ảnh y tế.
+
+Tuy nhiên, qua phân tích kiến trúc CDDFuse, đồ án nhận thấy hai điểm có thể cải thiện:
+\begin{enumerate}\itemsep2pt
+    \item Tầng fusion sử dụng \textbf{phép cộng đơn giản} $f_I + f_V$ giữa đặc trưng hai modality, chưa tận dụng được tính chất khác biệt về độ tương phản, vùng nhiễu, vùng thông tin của từng modality.
+    \item Hàm mất mát $L_{\mathrm{int}}^{II}$ sử dụng \textbf{quy tắc max-pixel} để chọn target intensity --- cách tiếp cận này có thể tạo ra ảo ảnh ở vùng biên nơi cường độ của hai modality trái chiều, làm giảm chất lượng ảnh tổng hợp.
+\end{enumerate}
+
+Đây là động lực để đồ án đề xuất mô hình \textbf{CDDFuse-AG}, kết hợp hai cải tiến nhằm vào hai điểm yếu trên.
+
+\section{Mục tiêu đồ án}
 \label{sec:goal}
 
-% TODO: 3-5 gạch đầu dòng:
-% - Tìm hiểu CDDFuse và identify điểm yếu
-% - Đề xuất ≥3 phương án thay thế per module để đảm bảo objective comparison
-% - Statistical analysis với Wilcoxon + Holm correction
-% - Reproduce paper baseline và compare
+Đồ án đặt ra các mục tiêu cụ thể:
+
+\begin{enumerate}\itemsep2pt
+    \item \textbf{Phân tích CDDFuse}: Tìm hiểu chi tiết kiến trúc, hàm mất mát và quy trình huấn luyện của CDDFuse; xác định cụ thể các điểm yếu có thể tinh chỉnh.
+    \item \textbf{Đề xuất CDDFuse-AG}: Thiết kế và triển khai mô hình cải tiến bao gồm:
+        \begin{itemize}\itemsep0pt
+            \item Mô-đun \emph{Adaptive Gating} (AG) thay thế phép cộng ở tầng fusion bằng cơ chế gating học được, có khả năng đánh trọng số đặc trưng theo từng pixel và channel.
+            \item Cơ chế \emph{Saliency-guided Pixel selection} thay thế quy tắc max-pixel, sử dụng gradient cường độ làm "saliency map" để chọn target mềm hơn, giảm ảo ảnh biên.
+        \end{itemize}
+    \item \textbf{Thực nghiệm và đánh giá}: Huấn luyện đầy đủ theo quy trình paper (120 epoch, 2 pha, batch 8, AMP fp16) trên dữ liệu Harvard Medical Image Fusion. So sánh với baseline CDDFuse huấn luyện lại cùng quy trình (CDDFuse-Paper-MIF) trên 3 modality CT, PET, SPECT bằng:
+        \begin{itemize}\itemsep0pt
+            \item 25 chỉ số chất lượng ảnh tổng hợp.
+            \item Kiểm định Wilcoxon signed-rank kết hợp hiệu chỉnh Holm--Bonferroni.
+            \item Hiệu ứng Cliff's $\delta$ để đánh giá độ lớn cải thiện.
+        \end{itemize}
+    \item \textbf{Phân tích kết quả}: Đánh giá đóng góp riêng của từng cải tiến (Module A, Module B), xác định trade-off và rút ra kết luận về tính ứng dụng của CDDFuse-AG cho từng modality cụ thể.
+\end{enumerate}
 
 \section{Đóng góp của đồ án}
 \label{sec:contributions}
 
-Đồ án có các đóng góp chính sau:
-\begin{enumerate}
-    \item Khung \emph{light retrain ablation} nhanh (10--25 epoch, $\sim 50\times$ nhanh hơn huấn luyện đầy đủ) cho phép khảo sát 4 phương án Module~A và 4 phương án Module~B.
-    \item Khẳng định lại \emph{(tái thực hiện)} baseline CDDFuse-MIF trên 130 cặp Harvard medical, đạt sai số $\sim 10\text{--}20\%$ so với pretrained công bố.
-    \item Phát hiện thực nghiệm: trade-off NABF$\uparrow$/QM$\downarrow$ trong light retrain \emph{không generalize} sang huấn luyện đầy đủ --- đây là cảnh báo methodology cho các nghiên cứu future về fast ablation.
-    \item Mô hình \texttt{Combined-Gated-Saliency} đạt 10 chỉ số có ý nghĩa trên modality CT và PET (per-modal Holm), đề xuất hướng tune theo modality cụ thể.
+\begin{enumerate}\itemsep2pt
+    \item \textbf{Mô hình CDDFuse-AG}: kết hợp hai mô-đun cải tiến Adaptive Gating và Saliency-guided Pixel selection, được triển khai đầy đủ và huấn luyện đúng theo quy trình paper gốc.
+    \item \textbf{Tái thực hiện baseline CDDFuse-MIF}: huấn luyện lại từ đầu trên Harvard medical, công khai mã nguồn và checkpoint, làm cơ sở cho việc so sánh công bằng.
+    \item \textbf{Phân tích thống kê hệ thống}: pipeline tự động tính Wilcoxon + Cliff's $\delta$ + Holm correction trên 25 chỉ số $\times$ 3 modality, cho mỗi biến thể.
+    \item \textbf{Phân tích modal-specific}: chỉ ra CDDFuse-AG có hiệu quả khác nhau trên CT/PET/SPECT, gợi ý hướng tune theo modality cụ thể cho thực hành lâm sàng.
 \end{enumerate}
 
 \section{Bố cục đồ án}
 \label{sec:outline}
 
-% TODO: Mô tả ngắn nội dung từng chương
+Phần còn lại của đồ án được tổ chức như sau:
+
+\begin{itemize}\itemsep1pt
+    \item \textbf{Chương~\ref{ch:background}}: trình bày cơ sở lý thuyết về tổng hợp ảnh đa phương thức, kiến trúc CDDFuse, và các phương pháp đánh giá thống kê được sử dụng.
+    \item \textbf{Chương~\ref{ch:method}}: mô tả chi tiết hai mô-đun cải tiến (Adaptive Gating, Saliency-guided Pixel) và quy trình thí nghiệm.
+    \item \textbf{Chương~\ref{ch:results}}: trình bày kết quả thí nghiệm của CDDFuse-AG, so sánh với baseline trên ba modality.
+    \item \textbf{Chương~\ref{ch:discussion}}: thảo luận về trade-off, ý nghĩa modal-specific và hạn chế của phương pháp.
+    \item \textbf{Chương~\ref{ch:conclusion}}: tổng kết kết quả và đề xuất hướng phát triển.
+\end{itemize}
