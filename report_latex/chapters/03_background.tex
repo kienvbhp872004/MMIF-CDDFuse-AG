@@ -121,8 +121,55 @@ Mặc dù đạt hiệu năng tốt trên cả ba modality, CDDFuse vẫn còn d
 \section{Các phương pháp so sánh (SOTA)}
 \label{sec:sota}
 
-% TODO: Liệt kê các phương pháp đã chạy trong results_v2/ (U2Fusion, MMIF-DDFM, ...)
-% Bảng tổng hợp + composite z-score nếu có
+Để đặt vị trí của CDDFuse trong bối cảnh nghiên cứu hiện tại, đồ án đã đánh giá 22 phương pháp tổng hợp ảnh y tế gần đây trên cùng tập test Harvard medical (72 cặp ảnh, 24 mỗi modality CT/PET/SPECT) với 22 chỉ số chất lượng giống nhau. Để có một con số duy nhất phục vụ xếp hạng, đồ án sử dụng \emph{composite z-score} --- tổ hợp tuyến tính các chỉ số sau khi chuẩn hóa z theo từng metric (đảo dấu cho các metric ``thấp tốt hơn'' như NABF, RMSE, CE), tổng hợp trung bình trên cả ba modality.
+
+\paragraph{Cách tính composite z-score.}
+Với mỗi metric $m$ và modality $k$, giá trị thô $x_{m,k}^{(i)}$ của model $i$ được chuẩn hóa thành z-score:
+\begin{equation}
+z_{m,k}^{(i)} = \mathrm{sign}_m \cdot \frac{x_{m,k}^{(i)} - \mu_{m,k}}{\sigma_{m,k}}
+\end{equation}
+trong đó $\mathrm{sign}_m \in \{-1, +1\}$ (dấu cộng cho metric cao tốt hơn, dấu trừ cho metric thấp tốt hơn), $\mu_{m,k}, \sigma_{m,k}$ là trung bình và độ lệch chuẩn của metric $m$ trên modality $k$ qua toàn bộ 22 model. Composite z-score của model $i$ là:
+\begin{equation}
+\bar{z}^{(i)} = \frac{1}{|M| \cdot 3} \sum_{m \in M} \sum_{k \in \{\mathrm{CT}, \mathrm{PET}, \mathrm{SPECT}\}} z_{m,k}^{(i)}
+\end{equation}
+Composite z-score càng cao thì model càng có hiệu năng tổng thể tốt --- giá trị dương nghĩa là trên trung bình quần thể, giá trị âm là dưới trung bình.
+
+\paragraph{Kết quả xếp hạng.}
+Bảng~\ref{tab:zscore-ranking} liệt kê toàn bộ 22 phương pháp theo thứ tự composite z-score giảm dần. CDDFuse đứng \textbf{vị trí thứ 2} với $\bar{z} = 0.9256$, chỉ sau MM-Net-Fusion ($\bar{z} = 1.0285$) và vượt trội đáng kể so với top 10 trở xuống. Đây là lý do đồ án chọn CDDFuse làm \emph{base model} để cải tiến --- một phương pháp đã ở mức SOTA cao và có dư địa cải thiện ở một vài chỉ số cụ thể (NABF, QM) mà không cần thay đổi toàn bộ kiến trúc.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Xếp hạng 22 phương pháp tổng hợp ảnh y tế theo composite z-score (cao hơn = tốt hơn). Đánh giá trên 72 cặp ảnh test, 22 chỉ số chất lượng, gộp ba modality CT/PET/SPECT.}
+\label{tab:zscore-ranking}
+\begin{tabular}{rlc|rlc}
+\toprule
+\textbf{Rank} & \textbf{Model} & \textbf{Composite $\bar{z}$} & \textbf{Rank} & \textbf{Model} & \textbf{Composite $\bar{z}$} \\
+\midrule
+1  & MM-Net-Fusion          & $+1.029$ & 12 & DDBFusion         & $+0.040$ \\
+\textbf{2}  & \textbf{CDDFuse} \cite{zhao2023cddfuse} & $\mathbf{+0.926}$ & 13 & AdaFuse           & $+0.027$ \\
+3  & MFS-Fusion             & $+0.688$ & 14 & AWFusion          & $-0.145$ \\
+4  & CM-CSAMFNet            & $+0.591$ & 15 & PSFusion          & $-0.148$ \\
+5  & BSAFusion              & $+0.576$ & 16 & MLFuse            & $-0.358$ \\
+6  & MMIF-INet              & $+0.440$ & 17 & WaveFusion        & $-0.374$ \\
+7  & LRFNet                 & $+0.410$ & 18 & NestFuse          & $-0.535$ \\
+8  & CMMDL                  & $+0.185$ & 19 & TUFusion          & $-0.673$ \\
+9  & GeSeNet                & $+0.144$ & 20 & ITFuse            & $-0.861$ \\
+10 & MBHFuse                & $+0.076$ & 21 & MMAE              & $-0.994$ \\
+11 & ECINFusion             & $+0.063$ & 22 & C2RF              & $-1.105$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Lựa chọn base model.}
+Bên cạnh vị trí cao trong xếp hạng, CDDFuse có những ưu điểm phù hợp cho cải tiến trong khuôn khổ đồ án:
+\begin{itemize}\itemsep0pt
+    \item Kiến trúc \emph{rõ ràng và mô-đun hóa}: tách Encoder/Fuse/Decoder, cho phép thay thế từng khối mà không ảnh hưởng phần còn lại.
+    \item Tổng tham số \emph{nhẹ} ($\sim 1.2$M), khả thi để huấn luyện đầy đủ trên một GPU consumer.
+    \item Mã nguồn và checkpoint pretrained được công bố đầy đủ, đảm bảo khả năng tái lặp.
+    \item Có \emph{hai điểm cụ thể} (phép cộng trong fuse layer, max-rule trong loss) là target rõ ràng cho cải tiến.
+\end{itemize}
+Trong khi đó MM-Net-Fusion (rank 1) có composite z chỉ cao hơn 0.1 nhưng kiến trúc phức tạp hơn và mã nguồn không công khai đầy đủ, làm cho việc thực nghiệm cải tiến khó hơn. Vì vậy đồ án chọn \textbf{CDDFuse làm điểm xuất phát} cho mô hình đề xuất CDDFuse-AG.
 
 \section{Đánh giá thống kê}
 \label{sec:stats-bg}
