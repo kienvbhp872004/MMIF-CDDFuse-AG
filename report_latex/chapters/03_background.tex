@@ -212,11 +212,141 @@ Trong khi đó MM-Net-Fusion (rank 1) có composite z chỉ cao hơn 0.1 nhưng 
 \section{Đánh giá thống kê}
 \label{sec:stats-bg}
 
-\subsection{Wilcoxon signed-rank}
-% TODO: Định nghĩa Wilcoxon paired, alternative='greater', alpha=0.05
+So sánh hai mô hình tổng hợp ảnh trên 22 chỉ số chất lượng không thể chỉ dựa vào trung bình. Hai vấn đề có thể gặp:
+\begin{itemize}\itemsep0pt
+    \item \textbf{Chênh lệch trung bình nhỏ có thể là ngẫu nhiên}: với 24 ảnh test, chênh lệch $0.001$ ở SSIM có thể chỉ là sampling noise.
+    \item \textbf{Càng test nhiều chỉ số, càng dễ ``trúng'' SIG ngẫu nhiên}: với $\alpha = 0.05$, test 22 chỉ số sẽ có trung bình $22 \cdot 0.05 \approx 1.1$ false positives mỗi lần --- không thể trust một SIG đơn lẻ.
+\end{itemize}
+Để xử lý hai vấn đề này, đồ án dùng pipeline gồm \emph{kiểm định Wilcoxon} (để đo có ý nghĩa), \emph{Cliff's delta} (để đo độ lớn hiệu ứng) và \emph{Holm--Bonferroni correction} (để hiệu chỉnh multiple testing).
 
-\subsection{Cliff's delta}
-% TODO: Định nghĩa effect size + ngưỡng (trivial/small/medium/large)
+\subsection{Kiểm định Wilcoxon signed-rank}
+\label{ssec:wilcoxon}
 
-\subsection{Holm-Bonferroni correction}
-% TODO: Giải thích multiple-testing correction, K=22 metrics
+Wilcoxon signed-rank test \cite{wilcoxon1945individual} là kiểm định phi-tham số cho dữ liệu \emph{paired} (cặp). Trong context đồ án, mỗi cặp gồm hai giá trị metric của baseline và variant đo trên \emph{cùng một ảnh test}, ví dụ:
+\begin{itemize}\itemsep0pt
+    \item Ảnh CT số 1: SSIM baseline $= 1.480$, SSIM variant $= 1.491 \to$ chênh $+0.011$.
+    \item Ảnh CT số 2: SSIM baseline $= 1.467$, SSIM variant $= 1.473 \to$ chênh $+0.006$.
+    \item \ldots
+\end{itemize}
+24 cặp ảnh → 24 chênh lệch. Câu hỏi: chênh lệch dương có \emph{ý nghĩa thống kê} không, hay chỉ là ngẫu nhiên?
+
+\paragraph{Giả thuyết.}
+Với one-sided test (variant tốt hơn baseline):
+\begin{align*}
+H_0 &: \text{median}(\text{variant} - \text{baseline}) = 0 \quad (\text{không có cải thiện}) \\
+H_1 &: \text{median}(\text{variant} - \text{baseline}) > 0 \quad (\text{variant cải thiện})
+\end{align*}
+
+\paragraph{Quy trình.}
+Với $n$ cặp dữ liệu $(x_i, y_i)$, tính chênh lệch $d_i = y_i - x_i$:
+\begin{enumerate}\itemsep0pt
+    \item Loại bỏ các cặp $d_i = 0$.
+    \item Xếp hạng $|d_i|$ tăng dần, gán rank $r_i$ (xử lý tie bằng average rank).
+    \item Tính $W^+ = \sum_{d_i > 0} r_i$ và $W^- = \sum_{d_i < 0} r_i$.
+    \item Test statistic $W = \min(W^+, W^-)$ so với phân phối Wilcoxon đã biết.
+    \item Trả về $p$-value: xác suất quan sát được $W$ hoặc cực đoan hơn dưới $H_0$.
+\end{enumerate}
+
+\paragraph{Quyết định.}
+Với mức ý nghĩa $\alpha = 0.05$: nếu $p < \alpha$ thì bác bỏ $H_0$ và kết luận \emph{có cải thiện ý nghĩa}.
+
+\paragraph{Lý do dùng Wilcoxon thay vì t-test.}
+\begin{itemize}\itemsep0pt
+    \item Không yêu cầu phân phối chuẩn của chênh lệch (nhiều metric chất lượng ảnh phân phối lệch).
+    \item Robust với outlier --- một ảnh ``khó'' không kéo lệch toàn bộ kiểm định.
+    \item Phù hợp với cỡ mẫu nhỏ ($n = 24$ mỗi modality).
+\end{itemize}
+
+\subsection{Cliff's delta --- độ lớn hiệu ứng}
+\label{ssec:cliff}
+
+Wilcoxon chỉ trả lời câu hỏi ``có khác biệt không?'' không trả lời ``khác biệt bao nhiêu''. Để đo \emph{độ lớn} của cải thiện, đồ án dùng Cliff's delta \cite{cliff1993dominance} --- một effect size phi-tham số:
+\begin{equation}
+\delta = \frac{\#\{(i, j) : y_i > x_j\} - \#\{(i, j) : y_i < x_j\}}{n_y \cdot n_x}
+\end{equation}
+trong đó $x, y$ là hai mẫu (baseline và variant), $\#\{\cdot\}$ đếm số cặp thỏa điều kiện. $\delta \in [-1, +1]$:
+\begin{itemize}\itemsep0pt
+    \item $\delta = +1$: mọi giá trị variant đều lớn hơn mọi giá trị baseline.
+    \item $\delta = 0$: hai phân phối giống nhau.
+    \item $\delta = -1$: mọi giá trị variant đều nhỏ hơn mọi giá trị baseline.
+\end{itemize}
+
+\paragraph{Diễn giải $\delta$ theo Romano et~al.}
+Đồ án dùng ngưỡng phân loại độ lớn hiệu ứng tiêu chuẩn:
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Độ lớn (effect size)} & \textbf{Ngưỡng $|\delta|$} \\
+\midrule
+Trivial (không đáng kể)   & $|\delta| < 0.147$ \\
+Small (nhỏ)               & $0.147 \le |\delta| < 0.330$ \\
+Medium (vừa)              & $0.330 \le |\delta| < 0.474$ \\
+Large (lớn)               & $|\delta| \ge 0.474$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Vì sao cần effect size.}
+Với cỡ mẫu lớn, ngay cả chênh lệch rất nhỏ (không có ý nghĩa thực tế) cũng có thể đạt $p < 0.05$. Cliff's $\delta$ cho biết độ lớn thực tế của hiệu ứng, độc lập với cỡ mẫu. Một chỉ số đạt $p_{\mathrm{adj}} < 0.05$ nhưng $\delta < 0.147$ (trivial) là \emph{cải thiện nhỏ không có ý nghĩa thực hành} --- đồ án \emph{không} công nhận đó là cải thiện đáng kể.
+
+\subsection{Hiệu chỉnh multiple testing --- Holm--Bonferroni}
+\label{ssec:holm}
+
+Khi test đồng thời 22 chỉ số trên cùng một dataset, xác suất ít nhất một metric ngẫu nhiên đạt $p < 0.05$ là:
+\begin{equation}
+P(\text{ít nhất 1 false SIG}) = 1 - (1 - 0.05)^{22} \approx 0.677
+\end{equation}
+Tức là hơn $2/3$ khả năng có ít nhất một false positive nếu không hiệu chỉnh. Đây là vấn đề \emph{family-wise error rate} (FWER).
+
+\paragraph{Bonferroni đơn giản.}
+Giải pháp dễ nhất là chia $\alpha$ cho số test: $\alpha' = \alpha / K = 0.05 / 22 \approx 0.0023$. Bất kỳ metric nào đạt $p < 0.0023$ mới được coi là SIG. Nhược điểm: \emph{quá bảo thủ}, dễ bỏ sót cải thiện thực sự.
+
+\paragraph{Holm--Bonferroni.}
+Holm \cite{holm1979simple} đề xuất phương pháp \emph{sequentially rejective} mạnh hơn Bonferroni nhưng vẫn kiểm soát FWER:
+\begin{enumerate}\itemsep0pt
+    \item Xếp $K$ p-value tăng dần: $p_{(1)} \le p_{(2)} \le \ldots \le p_{(K)}$.
+    \item Với mỗi $i$, so sánh $p_{(i)}$ với ngưỡng $\alpha / (K - i + 1)$.
+    \item Bác bỏ $H_0^{(i)}$ nếu $p_{(i)} < \alpha / (K - i + 1)$. Nếu một metric không bác bỏ được, dừng lại --- tất cả metric sau cũng giữ $H_0$.
+\end{enumerate}
+
+Ví dụ với $K = 22$, $\alpha = 0.05$:
+\begin{itemize}\itemsep0pt
+    \item Ngưỡng cho metric có p-value nhỏ nhất: $0.05 / 22 \approx 0.0023$ (giống Bonferroni).
+    \item Ngưỡng cho metric thứ hai: $0.05 / 21 \approx 0.0024$.
+    \item Ngưỡng cho metric thứ 22 (lớn nhất): $0.05 / 1 = 0.05$.
+\end{itemize}
+$p$-value sau hiệu chỉnh Holm được tính tương đương:
+\begin{equation}
+p_{(i)}^{\mathrm{adj}} = \max_{j \le i} \min\big(1,\; (K - j + 1) \cdot p_{(j)}\big)
+\end{equation}
+
+\paragraph{Lý do chọn Holm.}
+\begin{itemize}\itemsep0pt
+    \item Mạnh hơn Bonferroni đơn giản (sensitivity cao hơn) nhưng vẫn kiểm soát FWER ở mức $\alpha$.
+    \item Không yêu cầu independence giữa các test (Bonferroni cũng vậy, nhưng Benjamini--Hochberg cần).
+    \item Phù hợp khi muốn \emph{strong control} FWER --- mỗi SIG được công nhận thực sự là cải thiện.
+\end{itemize}
+
+\subsection{Quy tắc quyết định cuối cùng}
+\label{ssec:decision-rule}
+
+Đồ án công nhận một metric có cải thiện \emph{ý nghĩa và đáng kể} khi thỏa mãn \emph{đồng thời} hai điều kiện:
+\begin{enumerate}\itemsep0pt
+    \item $p_{\mathrm{adj}}^{\mathrm{Holm}} < 0.05$ (ý nghĩa thống kê sau hiệu chỉnh).
+    \item Cliff's $\delta \ge 0.147$ (effect size từ \emph{small} trở lên).
+\end{enumerate}
+Việc kết hợp hai điều kiện đảm bảo claim của đồ án \emph{vừa có ý nghĩa thống kê, vừa có ý nghĩa thực tế}. Quy tắc này áp dụng đồng nhất khi đánh giá cả CDDFuse-AG và các biến thể trung gian, trên cả ba modality CT/PET/SPECT.
+
+\paragraph{Phân loại verdict.}
+Số lượng metric đạt SIG trên tổng 22 metric quyết định verdict cuối cùng:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Verdict} & \textbf{Điều kiện} \\
+\midrule
+\texttt{CONFIRM\_IMPROVEMENT}  & $\ge 5$ metric SIG \\
+\texttt{MIXED}                 & $2$--$4$ metric SIG \\
+\texttt{NO\_IMPROVEMENT}       & $\le 1$ metric SIG \\
+\bottomrule
+\end{tabular}
+\end{center}
